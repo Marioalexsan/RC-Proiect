@@ -1,5 +1,5 @@
-# File System Helper
-# Purpose: Implements all of the file system operations as simple methods
+# fshelper.py
+# Provides simplified file access methods
 
 import os
 
