@@ -14,7 +14,22 @@ class CoAPException(Exception):
 
 
 class CoAPPacket:
-    def __init__(self, data, addr):
+    def __init__(self):
+        self.mversion = 0
+        self.mtype = 0
+        self.mtkl = 0
+        self.mclass = 0
+        self.mcode = 0
+        self.mid = 0
+        self.addr = ('127.0.0.1', 5683)
+        self.moptions = {}
+        self.mpayload = bytes(0)
+        self.token = bytes(0)
+
+    def parse(self, data, addr):
+        if data is None:
+            return
+
         bytecount = len(data)
         bytesdone = 0
 
@@ -30,8 +45,6 @@ class CoAPPacket:
         self.mcode = data[1] & 0x1F
         self.mid = (data[2] << 8) | data[3]
         self.addr = addr
-        self.moptions = {}
-        self.mpayload = bytes(0)
 
         bytesdone += 4
 
@@ -58,22 +71,23 @@ class CoAPPacket:
             delta = (0xF0 & data[bytesdone]) >> 4
             length = 0x0F & data[bytesdone]
 
+            bytesdone += 1
+
             if delta == 0xF and length == 0xF:
-                bytesdone += 1  # Payload marker found
-                break
+                break  # Payload marker found
 
             if delta == 13:  # Delta extended with 1 byte
-                delta += data[bytesdone + 1]
+                delta = data[bytesdone] + 13
                 bytesdone += 1
             elif delta == 14:  # Delta extended with 2 bytes
-                delta += (data[bytesdone + 1] << 8) + data[bytesdone + 2]
+                delta = (data[bytesdone] << 8) + data[bytesdone + 1] + 269
                 bytesdone += 2
 
             if length == 13:  # Length extended with 1 byte
-                length += data[bytesdone + 1]
+                length = data[bytesdone] + 13
                 bytesdone += 1
             elif length == 14:  # Length extended with 2 bytes
-                length += (data[bytesdone + 1] << 8) + data[bytesdone + 2]
+                length = (data[bytesdone] << 8) + data[bytesdone + 1] + 269
                 bytesdone += 2
 
             # If we have multiple options, then
@@ -82,10 +96,11 @@ class CoAPPacket:
             saveddelta += delta
 
             option = data[bytesdone:(bytesdone + length)]
+            bytesdone += length
 
             # There can be multiple options of the same delta, too
             # So we add the parsed values to a list
-            if self.moptions[deltatouse] is None:
+            if deltatouse not in self.moptions:
                 self.moptions[deltatouse] = []
             self.moptions[deltatouse].append(option)
 
@@ -95,14 +110,95 @@ class CoAPPacket:
 
         return
 
+    def tobytes(self):
+        data = []
+
+        # Write base header
+
+        data.append(((0x3 & self.mversion) << 6) | ((0x3 & self.mtype) << 4) | (0xF & self.mtkl))
+        data.append(((self.mclass & 0x7) << 5) | (self.mcode & 0x1F))
+        data.append((self.mid & 0xFF00) >> 8)
+        data.append((self.mid & 0x00FF))
+
+        # Write token (if any)
+
+        for i in range(0, self.mtkl):
+            data.append(self.token[i])
+
+        # Write options
+
+        saveddelta = 0
+
+        options = sorted(self.moptions.items(), key=lambda item: item[0])
+
+        for pair in options:
+            deltatouse = pair[0] - saveddelta
+            saveddelta += deltatouse
+
+            length = len(pair[1])
+
+            firstbyte = 0
+
+            # Write first byte
+
+            if deltatouse <= 12:
+                firstbyte |= (0xF & deltatouse) << 4
+            elif deltatouse <= 268:
+                firstbyte |= 13 << 4
+            else:
+                firstbyte |= 14 << 4
+
+            if length <= 12:
+                firstbyte |= (0xF & length)
+            elif length <= 268:
+                firstbyte |= 13
+            else:
+                firstbyte |= 14
+
+            data.append(firstbyte)
+
+            # Write extended option info
+
+            if deltatouse >= 269:
+                data.append((0xFF00 & (deltatouse - 269)) >> 4)
+                data.append(0xFF & (deltatouse - 269))
+            elif deltatouse >= 13:
+                data.append(0xFF & (deltatouse - 13))
+
+            if length >= 269:
+                data.append((0xFF00 & (length - 269)) >> 4)
+                data.append(0xFF & (length - 269))
+            elif length >= 13:
+                data.append(0xFF & (length - 13))
+
+            # Write the option itself
+
+            for i in range(0, len(pair[1])):
+                data.append(pair[1][i])
+
+        if self.mpayload is not None and len(self.mpayload) > 0:
+            data.append(0xFF)  # Payload marker
+
+            for i in range(0, len(self.mpayload)):
+                data.append(self.mpayload[i])
+
+        return bytes(data)
+
     def __str__(self):
         text = "Version: {0}\n" \
                "Type: {1}\n" \
                "Class: {2}\n" \
                "Code: {3}\n" \
                "Message ID: {4}\n" \
-               "Option count: {5}" \
+               "Option count: {5}\n" \
             .format(self.mversion, self.mtype, self.mclass, self.mcode, self.mid, len(self.moptions))
+
+        for pair in self.moptions.items():
+            text += "  {0} =\n".format(pair[0])
+            for option in pair[1]:
+                text += "    * {0}\n".format(option.decode("utf-8"))
+
+        text += 'Payload: {0}\n'.format(self.mpayload.decode("utf-8"))
 
         return text
 
@@ -124,19 +220,20 @@ class CoAPServer:
         self.event.clear()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Use UDP
         self.sock.bind((self.ip, self.port))
-        self.thread = threading.Thread(target=self.threadloop)
+        self.thread = threading.Thread(target=self.__threadloop)
         self.thread.start()  # Start receive loop
         print("Started CoAP server.")
         return
 
-    def threadloop(self):
+    def __threadloop(self):
         data = None
 
         while not self.event.is_set():
             try:
-                self.sock.settimeout(0.25)  # Listen for a second each time
+                self.sock.settimeout(0.25)  # Wait for this long for any data
                 data, addr = self.sock.recvfrom(65527)  # Maximum data size for a UDP datagram
-                packet = CoAPPacket(data, addr)  # Try to convert to CoAP
+                packet = CoAPPacket()  # Try to convert to CoAP
+                packet.parse(data, addr)
 
             except socket.timeout:
                 continue
@@ -159,7 +256,7 @@ class CoAPServer:
     def getdata(self):
         if self.queue.empty():
             return None
-        return self.queue.get()  # Returns (bytes, address)
+        return self.queue.get()  # Returns coap packet
 
     def stop(self):
         if self.sock is None:
@@ -169,4 +266,15 @@ class CoAPServer:
         self.sock = None
         self.thread = None
         print("Stopped CoAP server.")
+        return
+
+    def send(self, packet: CoAPPacket):
+        if self.sock is None:
+            return
+
+        try:
+            self.sock.sendto(packet.tobytes(), packet.addr)
+        except Exception as e:
+            print("Couldn't send packet due to exception {0}".format(e))
+
         return
