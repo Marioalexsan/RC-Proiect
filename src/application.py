@@ -21,7 +21,7 @@ class Application(Tk):
         self.status.grid(column=1, row=0)
         ttk.Button(frame, text='Start', command=self.__onstart).grid(column=1, row=1)
         ttk.Button(frame, text='Stop', command=self.__onstop).grid(column=1, row=2)
-        ttk.Button(frame, text='Quit', command=self.destroy).grid(column=1, row=3)
+        ttk.Button(frame, text='Quit', command=self.__onquit).grid(column=1, row=3)
 
         for child in frame.winfo_children():
             child.grid_configure(padx=5, pady=5)
@@ -46,6 +46,7 @@ class Application(Tk):
             self.log['text'] = "Received packet:\n" + str(packet)
 
     def __onquit(self):
+        self.status['text'] = 'Server is ded'
         self.destroy()
         self.server.stop()
-        self.status['text'] = 'Server is ded'
+
