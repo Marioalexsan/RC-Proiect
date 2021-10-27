@@ -2,6 +2,7 @@ from tkinter import *
 from tkinter import ttk
 import coap
 
+
 class Application(Tk):
     def __init__(self):
         super().__init__()
@@ -43,3 +44,8 @@ class Application(Tk):
             self.log['text'] = "Null packet received!"
         else:
             self.log['text'] = "Received packet:\n" + str(packet)
+
+    def __onquit(self):
+        self.destroy()
+        self.server.stop()
+        self.status['text'] = 'Server is ded'

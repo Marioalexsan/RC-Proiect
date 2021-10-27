@@ -4,6 +4,7 @@ import queue
 import threading
 import socket
 
+
 class CoAPException(Exception):
     def __init__(self, msg):
         self.msg = msg
@@ -101,7 +102,7 @@ class CoAPPacket:
                "Code: {3}\n" \
                "Message ID: {4}\n" \
                "Option count: {5}" \
-               .format(self.mversion, self.mtype, self.mclass, self.mcode, self.mid, len(self.moptions))
+            .format(self.mversion, self.mtype, self.mclass, self.mcode, self.mid, len(self.moptions))
 
         return text
 
@@ -133,7 +134,7 @@ class CoAPServer:
 
         while not self.event.is_set():
             try:
-                self.sock.settimeout(1)  # Listen for a second each time
+                self.sock.settimeout(0.25)  # Listen for a second each time
                 data, addr = self.sock.recvfrom(65527)  # Maximum data size for a UDP datagram
                 packet = CoAPPacket(data, addr)  # Try to convert to CoAP
 
