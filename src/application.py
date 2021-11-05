@@ -4,6 +4,7 @@ import coap
 
 
 class Application(Tk):
+    #functie de initializare a GUI / constructor
     def __init__(self):
         super().__init__()
 
