@@ -13,9 +13,10 @@ class CoAPException(Exception):
     def __str__(self):
         return str(self.msg)
 
-#clasa pentru definirea unui pachet Co-AP cu toate campurile sale
+
+# Clasa pentru definirea unui pachet Co-AP cu toate campurile sale
 class CoAPPacket:
-    #constructor
+    # Constructor
     def __init__(self):
         self.mversion = 0
         self.mtype = 0
@@ -28,8 +29,8 @@ class CoAPPacket:
         self.mpayload = bytes(0)
         self.token = bytes(0)
 
-    #initializeaza un pachet coap dintr-un sir de octeti
-    #parsarea este facuta dupa RFC7252
+    # Initializeaza un pachet coap dintr-un sir de octeti
+    # Parsarea este facuta dupa RFC7252
     def parse(self, data, addr):
         if data is None:
             return
@@ -94,18 +95,14 @@ class CoAPPacket:
                 length = (data[bytesdone] << 8) + data[bytesdone + 1] + 269
                 bytesdone += 2
 
-            #daca avem optiuni multiple, atunci delta este format din suma delta_precedent si delta_curent
-            # If we have multiple options, then
-            # true delta is formed by adding previous deltas
+            # Daca avem optiuni multiple, atunci delta este format din suma delta_precedent si delta_curent
             deltatouse = saveddelta + delta
             saveddelta += delta
 
             option = data[bytesdone:(bytesdone + length)]
             bytesdone += length
 
-            #pot fi si mai multe optiuni in unele cazuri, deci adaugam valorile parsate intr-o lista
-            # There can be multiple options of the same delta, too
-            # So we add the parsed values to a list
+            # Pot fi si mai multe optiuni in unele cazuri, deci adaugam valorile parsate intr-o lista
             if deltatouse not in self.moptions:
                 self.moptions[deltatouse] = []
             self.moptions[deltatouse].append(option)
@@ -117,7 +114,7 @@ class CoAPPacket:
 
         return
 
-    #functie de convertire a unui pachet coap la un sir de octeti / operatiunea inversa parsarii
+    # Functie de convertire a unui pachet coap la un sir de octeti / operatiunea inversa parsarii
     def tobytes(self):
         data = []
 
@@ -192,7 +189,7 @@ class CoAPPacket:
 
         return bytes(data)
 
-    #functie de reprezentare scrisa a pachetului
+    # Functie de reprezentare scrisa a pachetului
     def __str__(self):
         text = "Version: {0}\n" \
                "Type: {1}\n" \
@@ -212,9 +209,9 @@ class CoAPPacket:
         return text
 
 
-#clasa pentru definirea unui server Co-AP
+# Clasa pentru definirea unui server Co-AP
 class CoAPServer:
-    #constructor
+    # Constructor
     def __init__(self, onreceive=None):
         self.ip = '127.0.0.1'  # Loopback IP
         self.port = 5683  # CoAP Port
@@ -225,8 +222,8 @@ class CoAPServer:
         self.onreceive = onreceive
         return
 
-    #functie de pornire a serverului
-    #creeaza un socket de tipul UDP si creeaza un thread pentru citirea mesajulor
+    # Functie de pornire a serverului
+    # Creeaza un socket de tipul UDP si creeaza un thread pentru citirea mesajulor
     def start(self):
         if self.sock is not None:
             return
@@ -238,7 +235,7 @@ class CoAPServer:
         print("Started CoAP server.")
         return
 
-    #threadul pornit de server asteapta mesajele din aces loop
+    # Threadul pornit de server asteapta mesajele din aces loop
     def __threadloop(self):
         data = None
 
