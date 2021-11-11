@@ -1,6 +1,6 @@
 from tkinter import *
 from tkinter import ttk
-import coap
+import coap_server
 
 
 class Application(Tk):
@@ -8,7 +8,7 @@ class Application(Tk):
     def __init__(self):
         super().__init__()
 
-        self.server = coap.CoAPServer()
+        self.server = coap_server.CoAPServer()
         self.server.onreceive = self.__onreceive
         self.title("CoAP Server")
 
