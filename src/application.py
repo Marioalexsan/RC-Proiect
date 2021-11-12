@@ -1,6 +1,19 @@
 from tkinter import *
 from tkinter import ttk
-import coap_server
+from coap_server import *
+import coap
+
+
+def onping(packet: CoAPPacket):
+    reply = CoAPPacket()
+    reply.version = 1
+    reply.type = coap.MTYPE_ACK
+    reply.msg_class = coap.MCLASS_SIGNAL_CODE
+    reply.msg_code = coap.MSG_PONG
+    reply.msg_id = packet.msg_id
+    reply.token = packet.token
+    reply.token_length = packet.token_length
+    return reply
 
 
 class Application(Tk):
@@ -8,8 +21,10 @@ class Application(Tk):
     def __init__(self):
         super().__init__()
 
-        self.server = coap_server.CoAPServer()
-        self.server.onreceive = self.__onreceive
+        # Setup server
+        self.server = CoAPServer()
+        self.server.on_receive[(coap.MCLASS_SIGNAL_CODE, coap.MSG_PING)] = onping
+
         self.title("CoAP Server")
 
         frame = ttk.Frame(self, padding=50, width=800, height=600)
@@ -50,4 +65,3 @@ class Application(Tk):
         self.status['text'] = 'Server is ded'
         self.destroy()
         self.server.stop()
-

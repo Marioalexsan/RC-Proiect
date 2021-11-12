@@ -3,6 +3,12 @@
 
 # FIXME: Do we limit ourselves to RFC-7252, or do we also use the updated specifications (such as RFC-8132)? -mario
 
+# Message types
+MTYPE_CON = 0
+MTYPE_NONCON = 1
+MTYPE_ACK = 2
+MTYPE_RESET = 3
+
 # Message classes
 MCLASS_METHOD = 0
 MCLASS_SUCCESS = 2
