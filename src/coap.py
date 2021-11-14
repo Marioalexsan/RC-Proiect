@@ -1,20 +1,26 @@
-# coap_server.py
+# coap.py
 # Defines many constants and other goodies related to CoAP
 
 # FIXME: Do we limit ourselves to RFC-7252, or do we also use the updated specifications (such as RFC-8132)? -mario
 
+# Misc Constants
+COAP_VERSION = 1
+
 # Message types
-MTYPE_CON = 0
-MTYPE_NONCON = 1
-MTYPE_ACK = 2
-MTYPE_RESET = 3
+TYPE_CON = 0
+TYPE_NON = 1
+TYPE_ACK = 2
+TYPE_RESET = 3
 
 # Message classes
-MCLASS_METHOD = 0
-MCLASS_SUCCESS = 2
-MCLASS_CLIENT_ERROR = 4
-MCLASS_SERVER_ERROR = 5
-MCLASS_SIGNAL_CODE = 7
+CLASS_METHOD = 0
+CLASS_SUCCESS = 2
+CLASS_CLIENT_ERROR = 4
+CLASS_SERVER_ERROR = 5
+CLASS_SIGNAL_CODE = 7  # RFC-8323
+
+# Non-Standard Message Codes
+MSG_SEARCH = (0, 8)
 
 # Empty Message Code
 MSG_EMPTY = (0, 0)
@@ -24,7 +30,6 @@ MSG_GET = (0, 1)
 MSG_POST = (0, 2)
 MSG_PUT = (0, 3)
 MSG_DELETE = (0, 4)
-MSG_SEARCH = (0, 8)  # This one is non-standard
 
 # Success Codes
 MSG_CREATED = (2, 1)
@@ -55,7 +60,7 @@ MSG_SERVICE_UNAVAILABLE = (5, 3)
 MSG_GATEWAY_TIMEOUT = (5, 4)
 MSG_PROXYING_NOT_SUPPORTED = (5, 5)
 
-# Signalling Codes
+# Signalling Codes - RFC-8323
 MSG_UNASSIGNED = (7, 0)
 MSG_CSM = (7, 1)
 MSG_PING = (7, 2)
@@ -111,3 +116,239 @@ COMM_PROCESSING_DELAY = 2
 COMM_MAX_RTT = 202
 COMM_EXCHANGE_LIFETIME = 247
 COMM_NON_LIFETIME = 145
+
+
+# defineste exceptiile aparute in urma procesarii pachetelor Co-AP
+class CoAPException(Exception):
+    def __init__(self, msg):
+        self.msg = msg
+
+    def __str__(self):
+        return str(self.msg)
+
+
+# Clasa pentru definirea unui pachet Co-AP cu toate campurile sale
+class CoAPPacket:
+    # Constructor
+    def __init__(self):
+        self.version = COAP_VERSION
+        self.type = TYPE_NON
+        self.code = MSG_EMPTY
+        self.id = 0
+        self.options = {}
+        self.payload = bytes(0)
+        self.token = bytes(0)
+
+        # Send / receive address
+        self.addr = ('127.0.0.1', 5683)
+        return
+
+    # Initializeaza un pachet coap dintr-un sir de octeti
+    # Parsarea este facuta dupa RFC7252
+    def parse(self, data):
+        if data is None:
+            raise CoAPException("No data provided")
+
+        bytecount = len(data)
+        bytesdone = 0
+
+        if bytecount < 4:
+            raise CoAPException("Not a CoAP packet")
+
+        # Header Base
+
+        self.version = (0xC0 & data[0]) >> 6
+        self.type = (0x30 & data[0]) >> 4
+        self.code = ((data[1] >> 5) & 0x07, data[1] & 0x1F)
+        self.id = (data[2] << 8) | data[3]
+
+        token_length = 0x0F & data[0]
+
+        bytesdone += 4
+
+        # Tokens
+
+        if bytecount < bytesdone + token_length:
+            raise CoAPException("Bad packet")
+
+        self.token = bytes(token_length)
+
+        for i in range(0, token_length):
+            self.token[i] = data[4 + i]
+
+        bytesdone += token_length
+
+        # Options
+
+        saveddelta = 0
+
+        while True:
+            if bytecount == bytesdone:
+                return  # End of message found
+
+            delta = (0xF0 & data[bytesdone]) >> 4
+            length = 0x0F & data[bytesdone]
+
+            bytesdone += 1
+
+            if delta == 0xF and length == 0xF:
+                break  # Payload marker found
+
+            if delta == 13:  # Delta extended with 1 byte
+                delta = data[bytesdone] + 13
+                bytesdone += 1
+            elif delta == 14:  # Delta extended with 2 bytes
+                delta = (data[bytesdone] << 8) + data[bytesdone + 1] + 269
+                bytesdone += 2
+
+            if length == 13:  # Length extended with 1 byte
+                length = data[bytesdone] + 13
+                bytesdone += 1
+            elif length == 14:  # Length extended with 2 bytes
+                length = (data[bytesdone] << 8) + data[bytesdone + 1] + 269
+                bytesdone += 2
+
+            # Daca avem optiuni multiple, atunci delta este format din suma delta_precedent si delta_curent
+            deltatouse = saveddelta + delta
+            saveddelta += delta
+
+            option = data[bytesdone:(bytesdone + length)]
+            bytesdone += length
+
+            # Pot fi si mai multe optiuni in unele cazuri, deci adaugam valorile parsate intr-o lista
+            if deltatouse not in self.options:
+                self.options[deltatouse] = []
+            self.options[deltatouse].append(option)
+
+        # The rest of the message is just payload, add it to packet
+        # restule mesajului reprezinta date, adaugam la packet
+
+        self.payload = data[bytesdone:bytecount]
+
+        return
+
+    # Functie de convertire a unui pachet coap la un sir de octeti / operatiunea inversa parsarii
+    def tobytes(self):
+        # Write base header
+
+        token_length = len(self.token)
+
+        if token_length > 8:
+            raise CoAPException("Token must be between 0 and 8 bytes (got {0})".format(token_length))
+
+        data = [
+            ((0x3 & self.version) << 6) | ((0x3 & self.type) << 4) | (0xF & token_length),
+            ((self.code[0] & 0x7) << 5) | (self.code[1] & 0x1F), (self.id & 0xFF00) >> 8,
+            self.id & 0x00FF
+        ]
+
+        # Write token (if any)
+
+        for i in range(0, token_length):
+            data.append(self.token[i])
+
+        # Write options
+
+        saveddelta = 0
+
+        options = sorted(self.options.items(), key=lambda item: item[0])
+
+        for pair in options:
+            deltatouse = pair[0] - saveddelta
+            saveddelta += deltatouse
+
+            length = len(pair[1])
+
+            firstbyte = 0
+
+            # Write first byte
+
+            if deltatouse <= 12:
+                firstbyte |= (0xF & deltatouse) << 4
+            elif deltatouse <= 268:
+                firstbyte |= 13 << 4
+            else:
+                firstbyte |= 14 << 4
+
+            if length <= 12:
+                firstbyte |= (0xF & length)
+            elif length <= 268:
+                firstbyte |= 13
+            else:
+                firstbyte |= 14
+
+            data.append(firstbyte)
+
+            # Write extended option info
+
+            if deltatouse >= 269:
+                data.append((0xFF00 & (deltatouse - 269)) >> 4)
+                data.append(0xFF & (deltatouse - 269))
+            elif deltatouse >= 13:
+                data.append(0xFF & (deltatouse - 13))
+
+            if length >= 269:
+                data.append((0xFF00 & (length - 269)) >> 4)
+                data.append(0xFF & (length - 269))
+            elif length >= 13:
+                data.append(0xFF & (length - 13))
+
+            # Write the option itself
+
+            for i in range(0, len(pair[1])):
+                data.append(pair[1][i])
+
+        if self.payload is not None and len(self.payload) > 0:
+            data.append(0xFF)  # Payload marker
+
+            for i in range(0, len(self.payload)):
+                data.append(self.payload[i])
+
+        return bytes(data)
+
+    # Functie de reprezentare scrisa a pachetului
+    def __str__(self):
+        text = ""
+        text += "Version: {0}, ".format(self.version)
+        text += "Type: {0}, ".format(self.type)
+        text += "Class: {0}, ".format(self.code[0])
+        text += "Code: {0}, ".format(self.code[1])
+        text += "Message ID: {0}\n".format(self.id)
+        text += "Option count: {0}\n".format(len(self.options))
+
+        for pair in self.options.items():
+            for option in pair[1]:
+                text += "{0} = {1}; ".format(pair[0], option.decode("utf-8"))
+
+        text += '\n'
+        text += 'Payload: [{0}]'.format(self.payload.decode("utf-8"))
+
+        return text
+
+
+# Creates a reset reply with the given message ID
+def make_reset(msg_id):
+    reply = CoAPPacket()
+    reply.version = COAP_VERSION
+    reply.type = TYPE_RESET
+    reply.code = MSG_EMPTY
+    return reply
+
+
+# Creates an empty ACK message with the given message ID
+# This can be used to separate response from request acknowledgement
+def make_empty_ack(msg_id):
+    reply = CoAPPacket()
+    reply.version = COAP_VERSION
+    reply.type = TYPE_ACK
+    reply.code = MSG_EMPTY
+    return reply
+
+
+def make_not_implemented(msg_id):
+    reply = CoAPPacket()
+    reply.version = COAP_VERSION
+    reply.type = TYPE_ACK
+    reply.code = MSG_NOT_IMPLEMENTED
+    reply.payload = bytes("The message type received is unsupported!")
+    return reply
