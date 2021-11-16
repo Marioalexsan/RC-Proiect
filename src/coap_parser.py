@@ -10,31 +10,40 @@ class CoAPParser:
 
     def onget(self, packet: CoAPPacket):
         # TODO: Implement this properly
+        # TODO: What goes here: command "details", "open"
         try:
             data = self.__jsondecoder.decode(str(packet.payload))
             print("Received JSON: ", data)
         except json.JSONDecodeError:
             pass
-
-        payload = {'lol': 0}
 
         reply = CoAPPacket()
         reply.version = COAP_VERSION
         reply.type = TYPE_NON
         reply.code = MSG_CONTENT
         reply.token = packet.token
-        reply.payload = self.__jsonencoder.encode(payload)
+        reply.payload = self.__jsonencoder.encode({'lol': 0})
         return reply
 
     def onpost(self, packet: CoAPPacket):
         # TODO: Implement this properly
+        # TODO: What goes here: commands "create", "save", "delete", "rename", "move"
+        data = None
         try:
             data = self.__jsondecoder.decode(str(packet.payload))
             print("Received JSON: ", data)
         except json.JSONDecodeError:
             pass
 
-        payload = {'lol': 1}
+        cmd = data["cmd"]
+        path = data["execute_path"]
+
+        if cmd == "create":
+            pass  # Process "create" command
+        elif cmd == "save":
+            pass  # Process "save"
+        else:
+            pass  # Couldn't recognize command, send 4.00 Bad Request, with payload "Client sent an invalid command"
 
         reply = CoAPPacket()
         reply.version = COAP_VERSION
@@ -42,7 +51,7 @@ class CoAPParser:
         reply.code = MSG_CHANGED
         reply.id = packet.id
         reply.token = packet.token
-        reply.payload = self.__jsonencoder.encode(payload)
+        reply.payload = self.__jsonencoder.encode({'lol': 1})
         return reply
 
     def onput(self, packet: CoAPPacket):
