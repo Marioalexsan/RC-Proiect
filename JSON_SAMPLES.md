@@ -17,18 +17,22 @@
 	* 4.04 Not Found - path is not valid
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    {
-    	"cmd": "create",
-    	"path": "/users/Alex/docs/readme.md",
-    	"type": "file"
-    }
+	```
+	{
+		"cmd": "create",
+		"path": "/users/Alex/docs/readme.md",
+		"type": "file"
+	}
+	```
 * Response payload samples:
+	```
 	// 1 - 2.04 Changed - object created
 	{
 		"client_cmd": "create",
 		"status": "created"
 	}
 	// 2 - 2.04 Changed - object already exists
+	
 	{
 		"client_cmd": "create",
 		"status": "exists"
@@ -37,6 +41,7 @@
 	"Path is invalid"
 	// 4 - 4.03 Forbidden - diagnostic message
 	"Missing file permissions for target object"
+	```
 
 
 # Open Command
@@ -54,11 +59,14 @@
 	* 4.04 Not Found - path is not valid
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    {
+	```
+    	{
 		"cmd": "open",
 		"path": "/users/Alex/docs/readme.md"
 	}
+	```
 * Response payload samples:
+	```
 	// 1 - 2.05 Content - file retrieved
 	{
 		"client_cmd": "open",
@@ -68,7 +76,7 @@
 	"Path is invalid"
 	// 3 - 4.03 Forbidden - diagnostic message
 	"Missing file permissions for target object"
-
+	```
 
 
 # Save Command
@@ -88,12 +96,15 @@
 	* 4.04 Not Found - path is not valid
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    {
+    	```
+	{
 		"cmd": "save",
 		"path": "/users/Alex/docs/readme.md",
 		"content": "This is a readme file for the CoAP Server repository"
 	}
+	```
 * Response payload samples:
+	```
 	// 1 - 2.04 Changed - file modified
 	{
 		"client_cmd": "save",
@@ -103,6 +114,7 @@
 	"Path is invalid"
 	// 3 - 4.03 Forbidden - diagnostic message
 	"Missing file permissions for target object"
+	```
 
 
 # Delete Command
@@ -121,11 +133,14 @@
 	* 4.04 Not Found - path is not valid
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    {
+	```
+    	{
 		"cmd": "delete",
 		"path": "/users/Alex/docs/readme.md"
 	}
+	```
 * Response payload samples:
+	```
 	// 1 - 2.02 Deleted - file deleted
 	{
 		"client_cmd": "delete",
@@ -135,6 +150,7 @@
 	"Path is invalid"
 	// 3 - 4.03 Forbidden - diagnostic message
 	"Missing file permissions for target object"
+	```
 	
 
 # Rename Command
@@ -155,11 +171,14 @@
 	* 4.03 Forbidden - an object with the new name already exists
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    {
+	```
+    	{
 		"cmd": "rename",
 		"path": "/users/Alex/docs/readme.md"
 	}
+	```
 * Response payload samples:
+	```
 	// 1 - 2.04 Changed - file renamed
 	{
 		"client_cmd": "rename",
@@ -171,6 +190,7 @@
 	"Missing file permissions for target object"
 	// or...
 	"An object with that name already exists"
+	```
 
 
 # Move Command
@@ -192,11 +212,14 @@
 	* 4.03 Forbidden - an object with the new path already exists
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    {
+	```
+    	{
 		"cmd": "rename",
 		"path": "/users/Alex/docs/readme.md"
 	}
+	```
 * Response payload samples:
+	```
 	// 1 - 2.04 Changed - file moved
 	{
 		"client_cmd": "move",
@@ -210,6 +233,7 @@
 	"Missing file permissions for target object"
 	// or...
 	"An object with that name already exists"
+	```
 	
 
 # Details Command
@@ -232,7 +256,8 @@
 	* 4.04 Not Found - path is not valid
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    {
+    	```
+	{
 		"cmd": "details",
 		"path": "/users/Alex/docs/readme.md"
 	}
@@ -241,7 +266,9 @@
 		"cmd": "details",
 		"path": "/users/Alex/docs"
 	}
+	```
 * Response payload samples:
+	```
 	// 1 - 2.05 Content - asked about a file
 	{
 		"client_cmd": "details",
@@ -261,6 +288,7 @@
 	"Path is invalid"
 	// 4 - 4.03 Forbidden - diagnostic message
 	"Missing file permissions for target object"
+	```
 	
 	
 # Search Command
@@ -277,11 +305,14 @@
 	* 4.04 Not Found - path is not valid
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    {
+    	```
+	{
 		"path": "/users/Alex",
 		"target_name_regex": "*.exe"
 	}
+	```
 * Response payload samples:
+	```
 	// 1 - 2.05 Content - search results
 	{
 		"search_path": "/users/Alex",
@@ -292,4 +323,5 @@
 	"Search path is invalid"
 	// 4 - 4.03 Forbidden - diagnostic message
 	"Missing file permissions for searching"
+	```
 	
