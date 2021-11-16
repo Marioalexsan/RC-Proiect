@@ -60,7 +60,7 @@
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
 	```
-    	{
+	{
 		"cmd": "open",
 		"path": "/users/Alex/docs/readme.md"
 	}
@@ -96,7 +96,7 @@
 	* 4.04 Not Found - path is not valid
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    	```
+	```
 	{
 		"cmd": "save",
 		"path": "/users/Alex/docs/readme.md",
@@ -134,7 +134,7 @@
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
 	```
-    	{
+	{
 		"cmd": "delete",
 		"path": "/users/Alex/docs/readme.md"
 	}
@@ -172,7 +172,7 @@
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
 	```
-    	{
+  	{
 		"cmd": "rename",
 		"path": "/users/Alex/docs/readme.md"
 	}
@@ -213,7 +213,7 @@
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
 	```
-    	{
+	{
 		"cmd": "rename",
 		"path": "/users/Alex/docs/readme.md"
 	}
@@ -256,7 +256,7 @@
 	* 4.04 Not Found - path is not valid
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    	```
+	```
 	{
 		"cmd": "details",
 		"path": "/users/Alex/docs/readme.md"
@@ -305,7 +305,7 @@
 	* 4.04 Not Found - path is not valid
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
-    	```
+	```
 	{
 		"path": "/users/Alex",
 		"target_name_regex": "*.exe"
