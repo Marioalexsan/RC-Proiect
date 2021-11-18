@@ -41,7 +41,7 @@ class CoAPServer:
         return
 
     # Functie de pornire a serverului
-    # Creeaza un socket de tipul UDP si creeaza un thread pentru citirea mesajulor
+    # Creeaza un socket de tipul UDP si creeaza un thread pentru citirea mesajelor
     def start(self):
         if self.__sock is not None:
             return

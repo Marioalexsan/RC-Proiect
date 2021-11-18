@@ -152,6 +152,7 @@ class CoAPPacket:
         bytecount = len(data)
         bytesdone = 0
 
+        #primii 4 biti sunt obligatorii in orice pachet CoAP
         if bytecount < 4:
             raise CoAPException("Not a CoAP packet")
 
@@ -221,7 +222,7 @@ class CoAPPacket:
             self.options[deltatouse].append(option)
 
         # The rest of the message is just payload, add it to packet
-        # restule mesajului reprezinta date, adaugam la packet
+        # restul mesajului reprezinta date, adaugam la packet
 
         self.payload = data[bytesdone:bytecount]
 
