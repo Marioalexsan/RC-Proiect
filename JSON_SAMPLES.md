@@ -13,7 +13,7 @@
 	* "status" - status of the operation
 		* Accepted value: "created" or "exists"
 * Responses:
-	* 2.04 Changed - object was created, or an existing one was found
+	* 2.01 Created - object was created, or an existing one was found
 	* 4.04 Not Found - path is not valid
 	* 4.03 Forbidden - action was denied by file system (missing file perms, etc.)
 * Request payload samples:
