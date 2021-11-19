@@ -4,6 +4,7 @@ import random
 import threading
 import socket
 import time
+import itertools
 from coap import *
 
 
@@ -25,13 +26,14 @@ class CoAPServer:
         self.port = 5683  # CoAP Port
         self.__thread = None  # Socket's dedicated process
         self.__stop_called = threading.Event()  # Used to signal that process should stop
+        self.__mutex = threading.Semaphore(1)
         self.__sock = None  # The socket
         self.__current_id = 225
-        self.__messages_sending = []
+        self.__messages_sending: list[CoAPPacket] = []
         self.__last_update_at = 0
 
         # Msg Callback dictionary stores callbacks that are called for specific message codes
-        self.on_receive = {}
+        self.on_receive = []
         self.on_ack_fail = None
 
         # Configuration
@@ -75,20 +77,20 @@ class CoAPServer:
         if self.__sock is None:
             return
 
+        # If message is of type CON, do not send directly; use retransmission instead
+        # For other types, send them right away
         if packet.type == TYPE_CON:
-            # We may need to send this multiple times until we get an ACK message
-            rand = random.random()
-
             state = PacketState()
             state.packet = packet
-            state.cooldown = COMM_ACK_TIMEOUT * ((COMM_ACK_RANDOM_FACTOR - 1) * rand + 1)
+            state.cooldown = COMM_ACK_TIMEOUT * ((COMM_ACK_RANDOM_FACTOR - 1) * random.random() + 1)
             state.attempts = COMM_MAX_RETRANSMIT
             state.send_cooldown = 0
             state.attempts_left = state.attempts
 
+            self.__mutex.acquire()
             self.__messages_sending += state
+            self.__mutex.release()
         else:
-            # Send it right away
             self.__send_packet(packet)
 
         return
@@ -109,6 +111,7 @@ class CoAPServer:
 
             # Update messages that are waiting for ACK replies
             # Messages that exceed MAX_RETRANSMIT sends are removed
+            self.__mutex.acquire()
             for state in self.__messages_sending:
                 state.cooldown_left -= time_delta
 
@@ -121,6 +124,7 @@ class CoAPServer:
                         self.__messages_sending.remove(state)
                         if callable(self.on_ack_fail):
                             self.on_ack_fail(state.packet)
+            self.__mutex.release()
 
             # Receive messages
             # FIXME: Send a reset message for non-timeout exceptions? -mario
@@ -141,6 +145,12 @@ class CoAPServer:
                 print('Got a message, but parse failed due to an internal error.')
                 print('Exception message: {0}'.format(e))
                 continue
+
+            if packet.type == TYPE_ACK:
+                # Stop retransmission for all packets (usually one?) that match the ACK's ID
+                self.__mutex.acquire()
+                self.__messages_sending = [msg for msg in self.__messages_sending if msg.id != packet.id]
+                self.__mutex.release()
 
             if packet.code in self.on_receive:
                 reply = self.on_receive[packet.code](packet)

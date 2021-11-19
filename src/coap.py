@@ -130,14 +130,19 @@ class CoAPException(Exception):
 # Clasa pentru definirea unui pachet Co-AP cu toate campurile sale
 class CoAPPacket:
     # Constructor
-    def __init__(self):
-        self.version = COAP_VERSION
-        self.type = TYPE_NON
-        self.code = MSG_EMPTY
-        self.id = 0
-        self.options = {}
-        self.payload = bytes(0)
-        self.token = bytes(0)
+    def __init__(self, m_version=COAP_VERSION, m_type=TYPE_NON, m_code=MSG_EMPTY, m_id=0,
+                 m_options=None, m_token=bytes(0), m_payload=bytes(0)):
+        if m_options is None:
+            m_options = {}
+
+        # Members
+        self.version = m_version
+        self.type = m_type
+        self.code = m_code
+        self.id = m_id
+        self.options = m_options
+        self.payload = m_payload
+        self.token = m_token
 
         # Send / receive address
         self.addr = ('127.0.0.1', 5683)
