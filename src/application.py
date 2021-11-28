@@ -1,7 +1,7 @@
 from tkinter import *
 from tkinter import ttk
 from coap_server import *
-from coap_parser import CoAPParser
+from coap_parser import Parser
 
 
 class Application(Tk):
@@ -9,16 +9,16 @@ class Application(Tk):
     def __init__(self):
         super().__init__()
 
-        self.coap_parser = CoAPParser()
+        self.parser = Parser()
 
         # Setup server
-        self.server = CoAPServer()
+        self.server = Server()
 
-        self.server.on_receive[MSG_GET] = self.coap_parser.onget
-        self.server.on_receive[MSG_POST] = self.coap_parser.onpost
-        self.server.on_receive[MSG_PUT] = self.coap_parser.onput
-        self.server.on_receive[MSG_DELETE] = self.coap_parser.ondelete
-        self.server.on_receive[MSG_SEARCH] = self.coap_parser.onsearch
+        self.server.receivers[MSG_GET] = self.parser.onget
+        self.server.receivers[MSG_POST] = self.parser.onpost
+        self.server.receivers[MSG_PUT] = self.parser.onput
+        self.server.receivers[MSG_DELETE] = self.parser.ondelete
+        self.server.receivers[MSG_SEARCH] = self.parser.onsearch
 
         # Setup GUI
 

@@ -3,306 +3,260 @@ import os
 
 from coap import *
 import json
+from pathlib import Path
 
 
-class CoAPParser:
+class Parser:
     def __init__(self):
         self.__jsondecoder = json.JSONDecoder()
         self.__jsonencoder = json.JSONEncoder()
-        self.server_root = "C:\\Users\\elena\\OneDrive\\Desktop\\Server"
+        self.server_root = 'server_files/'
 
-    def onget(self, packet: CoAPPacket):
+        self.get_commands = {
+            'open': self.command_open,
+            'details': self.command_details
+        }
+
+        self.post_commands = {
+            'create': self.command_create,
+            'delete': self.command_delete,
+            'save': self.command_save,
+            'rename': self.command_rename,
+            'move': self.command_move,
+        }
+
+        return
+
+    # Validates paths taken from client requests
+    def __validate_path(self, path: str):
+        if path is None:
+            return None
+
+        if os.path.isabs(path):
+            return None
+
+        root = os.path.join(os.getcwd(), self.server_root)
+        root = os.path.normcase(root)
+        root = os.path.normpath(root)
+
+        path = os.path.join(root, path)
+        path = os.path.normcase(path)
+        path = os.path.normpath(path)
+
+        if not path.startswith(root):
+            return None
+
+        return path
+
+    def onget(self, packet: Packet):
         # TODO: Implement this properly
-        # TODO: What goes here: command "details", "open"
-        try:
-            data = self.__jsondecoder.decode(str(packet.payload))
-            print("Received JSON: ", data)
-        except json.JSONDecodeError:
-            pass
+        # TODO: What goes here: command 'details', 'open'
 
-        cmd = data["cmd"]
-        path = data["path"]
+        payload = packet.payload.decode('utf-8')
 
-        if cmd == "details":
-            pass
-        elif cmd == "open":
-            pass
-        else:
-            pass
-
-        reply = CoAPPacket()
-        reply.version = COAP_VERSION
-        reply.type = TYPE_NON
-        reply.code = MSG_CONTENT
-        reply.token = packet.token
-        reply.payload = self.__jsonencoder.encode({'lol': 0})
-        return reply
-
-    def onpost(self, packet: CoAPPacket):
-        # TODO: Implement this properly
-        # TODO: What goes here: commands "create", "save", "delete", "rename", "move"
         data = None
         try:
-            data = self.__jsondecoder.decode(str(packet.payload))
-            print("Received JSON: ", data)
+            data = self.__jsondecoder.decode(payload)
         except json.JSONDecodeError:
             pass
 
-        cmd = data["cmd"]
-        path = data["path"]
+        server_path = self.__validate_path(data['path'])
 
-        # verific daca am caractere ilegale in path
-        illegal_characters = ['#', '%', '&', '{', '}', '\\', '$', '!', '\'',
-                              '\"', ':', '<', '>', '*', '?', ' ', '/', '+', '|', '=']
-        for i in illegal_characters:
-            if illegal_characters[i] in path:
-                print("Bad request")
-                reply = CoAPPacket()
-                reply.version = COAP_VERSION
-                reply.type = TYPE_ACK
-                reply.code = MSG_BAD_REQUEST
-                reply.id = packet.id
-                reply.token = packet.token
-                reply.payload = bytes("File not created - Illegal characters found in path/ Path is invalid")
+        if data['cmd'] is None or data['path'] is None:
+            print('Received a malformatted request')
+            reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
+            reply.payload = bytes('Received a malformatted request', 'utf-8')
+            return reply
 
-        path_folder = os.path.join(self.server_root, path)
+        if server_path is None:
+            print('Received an invalid path.')
+            reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
+            reply.payload = bytes('The path requested is invalid, or access has been denied by the server.', 'utf-8')
+            return reply
 
-        if cmd == "create":  # Process "create" command
+        if data['cmd'] in self.get_commands:
+            return self.get_commands[data['cmd']](packet, data, server_path)
+        else:  # Couldn't recognize command, send 4.00 Bad Request, with payload 'Client sent an invalid command'
+            print('The request command was invalid')
+            reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
+            reply.payload = bytes('The request command was invalid', 'utf-8')
+            return reply
 
-            arg_type = data["type"]
-            if arg_type == "file":
-                # creez un fisier
-                try:
-                    result = open(path, mode='x')
-                    print("Created file ", path)
-                    reply = CoAPPacket()
-                    reply.version = COAP_VERSION
-                    reply.type = TYPE_ACK
-                    reply.code = MSG_CREATED
-                    reply.id = packet.id
-                    reply.token = packet.token
-                    reply.payload = bytes(self.__jsonencoder.encode({'client_cmd': 'create',
-                                                                     'status': 'created'
-                                                                     }))
+    def onpost(self, packet: Packet):
+        # TODO: Implement this properly
+        # TODO: What goes here: commands 'create', 'save', 'delete', 'rename', 'move'
+
+        payload = packet.payload.decode('utf-8')
+
+        data = None
+        try:
+            data = self.__jsondecoder.decode(payload)
+        except json.JSONDecodeError:
+            pass
+
+        server_path = self.__validate_path(data['path'])
+
+        if data['cmd'] is None or data['path'] is None:
+            print('Received a malformatted request')
+            reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
+            reply.payload = bytes('Received a malformatted request', 'utf-8')
+            return reply
+
+        if server_path is None:
+            print('Received an invalid path.')
+            reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
+            reply.payload = bytes('The path requested is invalid, or access has been denied by the server.', 'utf-8')
+            return reply
+
+        if data['cmd'] in self.post_commands:
+            return self.post_commands[data['cmd']](packet, data, server_path)
+        else:  # Couldn't recognize command, send 4.00 Bad Request, with payload 'Client sent an invalid command'
+            print('The request command was invalid')
+            reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
+            reply.payload = bytes('The request command was invalid', 'utf-8')
+            return reply
+
+    def onput(self, packet: Packet):
+        # TODO: Implement this properly
+        reply = make_not_implemented(packet.id, packet.token)
+        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
+        return reply
+
+    def ondelete(self, packet: Packet):
+        # TODO: Implement this properly
+        reply = make_not_implemented(packet.id, packet.token)
+        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
+        return reply
+
+    def onsearch(self, packet: Packet):
+        # TODO: Implement this properly
+        reply = make_not_implemented(packet.id, packet.token)
+        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
+        return reply
+
+    def command_create(self, packet: Packet, data, server_path):
+        if data['type'] is None or data['type'] not in ['file', 'folder']:  # type not recognised, send 4.00
+            reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
+            reply.payload = bytes('Requested FS object type is invalid', 'utf-8')
+            return reply
+
+        if data['type'] == 'file':  # creez un fisier
+            try:
+                with open(server_path, mode='x'):
+                    data = {'client_cmd': 'create', 'status': 'created'}
+
+                    reply = Packet(TYPE_ACK, MSG_CREATED, packet.id, packet.token)
+                    reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
+
+                    print('Created file', server_path)
                     return reply
-                except OSError as e:
-                    print("Bad request")
-                    reply = CoAPPacket()
-                    reply.version = COAP_VERSION
-                    reply.type = TYPE_ACK
-                    reply.code = MSG_BAD_REQUEST
-                    reply.id = packet.id
-                    reply.token = packet.token
-                    reply.payload = bytes("File not created")
-                    return reply
-                finally:
-                    result.close()
 
-            elif arg_type == "folder":
-                # creez un folder
-                try:
-                    path_folder = os.path.join(self.server_root, path)
-                    os.mkdir(path_folder)
-                    print("Created file ", path)
-                    reply = CoAPPacket()
-                    reply.version = COAP_VERSION
-                    reply.type = TYPE_ACK
-                    reply.code = MSG_CREATED
-                    reply.id = packet.id
-                    reply.token = packet.token
-                    reply.payload = bytes(self.__jsonencoder.encode({'client_cmd': 'create',
-                                                                     'status': 'created'
-                                                                     }))
-                    return reply
-                except OSError as e:
-                    # in cazul in care deja exista, ma duce in eroarea FileExistsError
-                    if e == 'FileExistsError':
-                        print("Already exists", path_folder)
-                        reply = CoAPPacket()
-                        reply.version = COAP_VERSION
-                        reply.type = TYPE_ACK
-                        reply.code = MSG_CREATED
-                        reply.id = packet.id
-                        reply.token = packet.token
-                        reply.payload = bytes(self.__jsonencoder.encode({'client_cmd': 'create',
-                                                                         'status': 'existed'
-                                                                         }))
-                        return reply
-                    # Tratare caz Bad Request
-                    print("Bad request")
-                    reply = CoAPPacket()
-                    reply.version = COAP_VERSION
-                    reply.type = TYPE_ACK
-                    reply.code = MSG_BAD_REQUEST
-                    reply.id = packet.id
-                    reply.token = packet.token
-                    reply.payload = bytes("Folder not created")  # 4.03 Forbidden
-                    return reply
-            else:  # type not recognised, send 4.00
-                reply = CoAPPacket()
-                reply.version = COAP_VERSION
-                reply.type = TYPE_ACK
-                reply.code = MSG_BAD_REQUEST
-                reply.id = packet.id
-                reply.token = packet.token
-                reply.payload = bytes("Type not recognised")
+            except FileExistsError:
+                data = {'client_cmd': 'create', 'status': 'exists'}
+
+                reply = Packet(TYPE_ACK, MSG_CREATED, packet.id, packet.token)
+                reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
+
+                print('File already exists', server_path)
                 return reply
-        elif cmd == "save":
-            pass  # Process "save"
-        elif cmd == "delete": #process delete command
 
-            arg_type = data["type"]
+            except OSError:
+                print('Failed to create file', server_path)
 
-            if arg_type == "file":
-                if os.path.exists(path_folder):
-                    if os.path.isfile(path_folder):
-                        # sterg un fisier
-                        try:
-                            os.remove(path_folder)
-                            print("Deleted file ", path)
-                            reply = CoAPPacket()
-                            reply.version = COAP_VERSION
-                            reply.type = TYPE_ACK
-                            reply.code = MSG_DELETED
-                            reply.id = packet.id
-                            reply.token = packet.token
-                            reply.payload = bytes(self.__jsonencoder.encode({'client_cmd': 'delete',
-                                                                             'status': 'deleted file'
-                                                                             }))
-                            return reply
-                        except OSError as e:  # tratare eroare ce poate aparea la remove
-                            if e == 'FileNotFoundError':
-                                print("File was not found", path_folder)
-                                reply = CoAPPacket()
-                                reply.version = COAP_VERSION
-                                reply.type = TYPE_ACK
-                                reply.code = MSG_BAD_REQUEST
-                                reply.id = packet.id
-                                reply.token = packet.token
-                                reply.payload = bytes("File not deleted")
-                                return reply
-                    else:
-                        print("File ", path, " does not exist")
-                        return
-                else:
-                    print("File does not exist")
-                    return
+                reply = Packet(TYPE_ACK, MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
+                reply.payload = bytes('File not created', 'utf-8')
+                return reply
 
-            elif arg_type == "folder":
-                # sterg directrul dat
-                if os.path.exists(path_folder):
-                    try:
-                        os.rmdir(path_folder)
-                        print("Deleted directory ", path)
-                        reply = CoAPPacket()
-                        reply.version = COAP_VERSION
-                        reply.type = TYPE_ACK
-                        reply.code = MSG_DELETED
-                        reply.id = packet.id
-                        reply.token = packet.token
-                        reply.payload = bytes(self.__jsonencoder.encode({'client_cmd': 'delete',
-                                                                         'status': 'deleted directory'
-                                                                         }))
-                        return reply
-                    except OSError as e:
-                        #in cazul in care nu exista, tratez eroarea FileNotFoundError
-                        print("Bad request - Directory is not found or contains files", path_folder)
-                        reply = CoAPPacket()
-                        reply.version = COAP_VERSION
-                        reply.type = TYPE_ACK
-                        reply.code = MSG_BAD_REQUEST
-                        reply.id = packet.id
-                        reply.token = packet.token
-                        reply.payload = bytes(self.__jsonencoder.encode({'client_cmd': 'delete',
-                                                                         'status': 'MISSING directory'
-                                                                         }))
-                        return reply
-                else: #4,04 Not Found
-                    reply = CoAPPacket()
-                    reply.version = COAP_VERSION
-                    reply.type = TYPE_ACK
-                    reply.code = MSG_BAD_REQUEST
-                    reply.id = packet.id
-                    reply.token = packet.token
-                    reply.payload = bytes("Bad Request - Directory not found")
-                    return reply
+        elif data['type'] == 'folder':  # creez un folder
+            try:
+                os.mkdir(server_path)
+
+                data = {'client_cmd': 'create', 'status': 'created'}
+
+                reply = Packet(TYPE_ACK, MSG_CREATED, packet.id, packet.token)
+                reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
+
+                print('Created folder', server_path)
+                return reply
+
+            except FileExistsError:  # in cazul in care deja exista, ma duce in eroarea FileExistsError
+                data = {'client_cmd': 'create', 'status': 'existed'}
+
+                reply = Packet(TYPE_ACK, MSG_CREATED, packet.id, packet.token)
+                reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
+
+                print('Folder exists', server_path)
+                return reply
+
+            except OSError:  # Tratare caz Bad Request
+                reply = Packet(TYPE_ACK, MSG_FORBIDDEN, packet.id, packet.token)
+                reply.payload = bytes('File system error during folder creation', 'utf-8')  # 4.03 Forbidden
+
+                print('Error when creating folder', server_path)
+                return reply
+        return None
+
+    def command_delete(self, packet, data, server_path):
+        if not os.path.exists(server_path):
+            reply = Packet(TYPE_ACK, MSG_NOT_FOUND, packet.id, packet.token)
+            reply.payload = bytes('Object at given path does not exist', 'utf-8')
+
+            print('Delete path does not exist')
+            return reply
+        try:
+            data = None
+            if os.path.isfile(server_path):  # sterg un fisier
+                os.remove(server_path)
+                data = {'client_cmd': 'delete', 'status': 'deleted file'}
+            elif os.path.isdir(server_path):
+                os.rmdir(server_path)
+                data = {'client_cmd': 'delete', 'status': 'deleted folder'}
             else:
-                print("Directory ", path, " does not exist")
+                reply = Packet(TYPE_ACK, MSG_FORBIDDEN, packet.id, packet.token)
+                reply.payload = bytes('Object given is neither file nor folder', 'utf-8')
 
+                print('bject given is neither file nor folder')
+                return reply
 
-        elif cmd == "rename":
-            pass  # process rename
-        elif cmd == "move":
-            pass  # process move
-        else:
-            pass  # Couldn't recognize command, send 4.00 Bad Request, with payload "Client sent an invalid command"
+            print('Deleted object ', server_path)
 
-        reply = CoAPPacket()
-        reply.version = COAP_VERSION
-        reply.type = TYPE_NON
-        reply.code = MSG_CHANGED
-        reply.id = packet.id
-        reply.token = packet.token
-        reply.payload = self.__jsonencoder.encode({'lol': 1})
+            reply = Packet(TYPE_ACK, MSG_DELETED, packet.id, packet.token)
+            reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
+            return reply
+
+        except OSError:  # tratare eroare ce poate aparea la remove
+            reply = Packet(TYPE_ACK, MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
+            reply.payload = bytes('Failed to delete object')
+
+            print('Encountered a problem when deleting object', server_path)
+            return reply
+
+    def command_open(self, packet, data, server_path):
+        reply = make_not_implemented(packet.id, packet.token)
+        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
         return reply
 
-    def onput(self, packet: CoAPPacket):
-        # TODO: Implement this properly
-        try:
-            data = self.__jsondecoder.decode(str(packet.payload))
-            print("Received JSON: ", data)
-        except json.JSONDecodeError:
-            pass
-
-        payload = {'lol': 2}
-
-        reply = CoAPPacket()
-        reply.version = COAP_VERSION
-        reply.type = TYPE_NON
-        reply.code = MSG_CHANGED
-        reply.id = packet.id
-        reply.token = packet.token
-        reply.payload = self.__jsonencoder.encode(payload)
+    def command_save(self, packet, data, server_path):
+        reply = make_not_implemented(packet.id, packet.token)
+        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
         return reply
 
-    def ondelete(self, packet: CoAPPacket):
-        # TODO: Implement this properly
-        try:
-            data = self.__jsondecoder.decode(str(packet.payload))
-            print("Received JSON: ", data)
-        except json.JSONDecodeError:
-            pass
-
-        payload = {'lol': 3}
-
-        cmd = data["cmd"]
-        path = data["path"]
-        type = data["type"]
-
-        reply = CoAPPacket()
-        reply.version = COAP_VERSION
-        reply.type = TYPE_NON
-        reply.code = MSG_DELETED
-        reply.id = packet.id
-        reply.token = packet.token
-        reply.payload = self.__jsonencoder.encode(payload)
+    def command_rename(self, packet, data, server_path):
+        reply = make_not_implemented(packet.id, packet.token)
+        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
         return reply
 
-    def onsearch(self, packet: CoAPPacket):
-        # TODO: Implement this properly
-        try:
-            data = self.__jsondecoder.decode(str(packet.payload))
-            print("Received JSON: ", data)
-        except json.JSONDecodeError:
-            pass
+    def command_move(self, packet, data, server_path):
+        reply = make_not_implemented(packet.id, packet.token)
+        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
+        return reply
 
-        payload = {'lol': 8}
+    def command_details(self, packet, data, server_path):
+        reply = make_not_implemented(packet.id, packet.token)
+        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
+        return reply
 
-        reply = CoAPPacket()
-        reply.version = COAP_VERSION
-        reply.type = TYPE_NON
-        reply.code = MSG_CONTENT
-        reply.id = packet.id
-        reply.token = packet.token
-        reply.payload = self.__jsonencoder.encode(payload)
+    def command_search(self, packet, data, server_path):
+        reply = make_not_implemented(packet.id, packet.token)
+        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
         return reply

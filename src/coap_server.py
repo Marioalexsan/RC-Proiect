@@ -1,94 +1,107 @@
 # coap_server.py
 # Implements the CoAP Server
 import random
-import threading
-import socket
+from threading import Thread, Event, Semaphore
 import time
-import itertools
+from socket import *
+from typing import Optional, Callable, Dict, List, Tuple, Any
+
 from coap import *
 
 
 # Defines the current state of a CoAP packet waiting to be sent
-class PacketState:
+class PendingReply:
     def __init__(self):
-        self.packet = CoAPPacket()
+        self.packet = Packet()
         self.attempts = 0
-        self.cooldown = 0
+        self.wait_time = 0
         self.attempts_left = 0
-        self.cooldown_left = 0
+        self.time_left = 0
 
 
 # Clasa pentru definirea unui server Co-AP
-class CoAPServer:
-    # Constructor
+class Server:
+    # Initializes CoAP Server using default values for options
     def __init__(self):
-        self.ip = '127.0.0.1'  # Loopback IP
-        self.port = 5683  # CoAP Port
-        self.__thread = None  # Socket's dedicated process
-        self.__stop_called = threading.Event()  # Used to signal that process should stop
-        self.__mutex = threading.Semaphore(1)
-        self.__sock = None  # The socket
-        self.__current_id = 225
-        self.__messages_sending: list[CoAPPacket] = []
-        self.__last_update_at = 0
+        self.ip = '127.0.0.1'
+        self.port = 5683
+        self.__thread: Optional[Thread] = None  # Update thread
+        self.__stop_event = Event()  # Thread stops when this is set
+        self.__stop_event.set()
+        self.__mutex = Semaphore(1)
+        self.__sock: Optional[socket] = None
+        self.__next_msgid = 225
+        self.__con_replies: List[PendingReply] = []
+        self.__last_time = 0
 
         # Msg Callback dictionary stores callbacks that are called for specific message codes
-        self.on_receive = []
-        self.on_ack_fail = None
+        self.receivers: Dict[Tuple[int, int], Callable[[Packet], Packet]] = {}
+        self.on_reply_lost: Optional[Callable[[Packet], None]] = None
 
         # Configuration
-        self.cfg_recvtimeout = 0.1  # In seconds
-        self.cfg_maxdatasize = 65527  # Maximum data size for a UDP datagram
+        self.config: Dict[str, Any] = {
+            'timeout': 0.1,
+            'maxdatasize': 65527
+        }
 
         return
 
     # Functie de pornire a serverului
     # Creeaza un socket de tipul UDP si creeaza un thread pentru citirea mesajelor
     def start(self):
-        if self.__sock is not None:
+        if self.__thread is not None:
             return
 
-        self.__last_update_at = time.time()
-        self.__stop_called.clear()
-        self.__sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Use UDP
-        self.__sock.bind((self.ip, self.port))
-        self.__thread = threading.Thread(target=self.__threadloop)
-        self.__thread.start()  # Start receive loop
-        print("Started CoAP server.")
+        # Prepare stuff
+        self.__stop_event.clear()
+        self.__last_time = time.time()
 
+        # Create socket
+        self.__sock = socket(AF_INET, SOCK_DGRAM)
+        self.__sock.bind((self.ip, self.port))
+
+        # Start update thread
+        self.__thread = Thread(target=self.__threadloop)
+        self.__thread.start()
+
+        print("Started CoAP server.")
         return
 
     def stop(self):
-        if self.__sock is None:
+        if self.__thread is None:
             return
 
-        self.__stop_called.set()  # Tell process to stop
-        self.__thread.join()  # Wait for process to stop
-        self.__sock = None
+        # Stop update thread
+        self.__stop_event.set()
+        self.__thread.join()
         self.__thread = None
-        print("Stopped CoAP server.")
 
+        # Stop network connections
+        self.__sock.close()
+        self.__sock = None
+
+        print("Stopped CoAP server.")
         return
 
     def is_active(self):
-        return self.__sock is not None
+        return self.__thread is not None
 
-    def send(self, packet: CoAPPacket):
-        if self.__sock is None:
+    def send(self, packet: Packet):
+        if self.__thread is None:
             return
 
-        # If message is of type CON, do not send directly; use retransmission instead
-        # For other types, send them right away
+        # If message is of type CON, use retransmission
+        # For other message types, send the packet now
         if packet.type == TYPE_CON:
-            state = PacketState()
-            state.packet = packet
-            state.cooldown = COMM_ACK_TIMEOUT * ((COMM_ACK_RANDOM_FACTOR - 1) * random.random() + 1)
-            state.attempts = COMM_MAX_RETRANSMIT
-            state.send_cooldown = 0
-            state.attempts_left = state.attempts
+            reply = PendingReply()
+            reply.packet = packet
+            reply.wait_time = COMM_ACK_TIMEOUT * ((COMM_ACK_RANDOM_FACTOR - 1) * random.random() + 1)
+            reply.attempts = COMM_MAX_RETRANSMIT
+            reply.send_cooldown = 0
+            reply.attempts_left = reply.attempts
 
             self.__mutex.acquire()
-            self.__messages_sending += state
+            self.__con_replies += reply
             self.__mutex.release()
         else:
             self.__send_packet(packet)
@@ -96,47 +109,53 @@ class CoAPServer:
         return
 
     def generate_id(self):
-        msgid = self.__current_id
-        self.__current_id += 1
+        msgid = self.__next_msgid
+        self.__next_msgid += 1
         return msgid
 
-    # Threadul pornit de server asteapta mesajele din aces loop
+    # The server's update thread
+    # It receives requests, and manages pending CON replies
     def __threadloop(self):
-        data = None
+        while not self.__stop_event.is_set():
 
-        while not self.__stop_called.is_set():
+            # Get elapsed time
             now = time.time()
-            time_delta = now - self.__last_update_at
-            self.__last_update_at = now
+            time_delta = now - self.__last_time
+            self.__last_time = now
 
             # Update messages that are waiting for ACK replies
             # Messages that exceed MAX_RETRANSMIT sends are removed
             self.__mutex.acquire()
-            for state in self.__messages_sending:
-                state.cooldown_left -= time_delta
 
-                if state.cooldown_left <= 0:
-                    if state.attempts_left > 0:
-                        state.attempts_left -= 1
-                        state.cooldown_left += state.cooldown * (2 ** (state.attempts - state.attempts_left))
-                        self.__send_packet(state.packet)
+            for reply in self.__con_replies:
+                reply.time_left -= time_delta
+
+                if reply.time_left <= 0:
+                    if reply.attempts_left > 0:
+                        reply.attempts_left -= 1
+                        reply.time_left += reply.wait_time * (2 ** (reply.attempts - reply.attempts_left))
+                        self.__send_packet(reply.packet)
                     else:
-                        self.__messages_sending.remove(state)
-                        if callable(self.on_ack_fail):
-                            self.on_ack_fail(state.packet)
+                        self.__con_replies.remove(reply)
+                        if callable(self.on_reply_lost):
+                            self.on_reply_lost(reply.packet)
+
             self.__mutex.release()
 
             # Receive messages
             # FIXME: Send a reset message for non-timeout exceptions? -mario
+
+            data = None
             try:
-                self.__sock.settimeout(self.cfg_recvtimeout)
-                data, addr = self.__sock.recvfrom(65527)
-                packet = CoAPPacket()
-                packet.addr = addr
+                self.__sock.settimeout(self.config['timeout'])
+
+                packet = Packet()
+                data, packet.addr = self.__sock.recvfrom(self.config['maxdatasize'])
                 packet.parse(data)
-            except socket.timeout:
+
+            except timeout:
                 continue
-            except CoAPException as e:
+            except ParseException as e:
                 print('Got a message, but parse failed.')
                 print('Exception message: {0}'.format(e))
                 print('Message contents: {0}'.format(data))
@@ -149,27 +168,27 @@ class CoAPServer:
             if packet.type == TYPE_ACK:
                 # Stop retransmission for all packets (usually one?) that match the ACK's ID
                 self.__mutex.acquire()
-                self.__messages_sending = [msg for msg in self.__messages_sending if msg.id != packet.id]
+                self.__con_replies = [msg for msg in self.__con_replies if msg.id != packet.id]
                 self.__mutex.release()
 
-            if packet.code in self.on_receive:
-                reply = self.on_receive[packet.code](packet)
+            if packet.code in self.receivers:
+                reply = self.receivers[packet.code](packet)
 
-                if reply is CoAPPacket:
+                if isinstance(reply, Packet):
                     reply.addr = packet.addr
                     self.send(reply)
             else:
                 # Send a generic server error
-
-                reply = make_not_implemented(packet.id)
+                reply = make_not_implemented(packet.id, packet.token)
+                reply.payload = bytes('Server does not support the request type', 'utf-8')
                 reply.addr = packet.addr
                 self.send(reply)
 
         return
 
-    def __send_packet(self, packet: CoAPPacket):
+    def __send_packet(self, packet: Packet):
         if self.__sock is None:
-            return
+            raise
 
         try:
             self.__sock.sendto(packet.tobytes(), packet.addr)

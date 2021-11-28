@@ -119,7 +119,7 @@ COMM_NON_LIFETIME = 145
 
 
 # defineste exceptiile aparute in urma procesarii pachetelor Co-AP
-class CoAPException(Exception):
+class ParseException(Exception):
     def __init__(self, msg):
         self.msg = msg
 
@@ -128,20 +128,17 @@ class CoAPException(Exception):
 
 
 # Clasa pentru definirea unui pachet Co-AP cu toate campurile sale
-class CoAPPacket:
+class Packet:
     # Constructor
-    def __init__(self, m_version=COAP_VERSION, m_type=TYPE_NON, m_code=MSG_EMPTY, m_id=0,
-                 m_options=None, m_token=bytes(0), m_payload=bytes(0)):
-        if m_options is None:
-            m_options = {}
+    def __init__(self, m_type=TYPE_NON, m_code=MSG_EMPTY, m_id=0, m_token=bytes(0)):
 
         # Members
-        self.version = m_version
+        self.version = COAP_VERSION
         self.type = m_type
         self.code = m_code
         self.id = m_id
-        self.options = m_options
-        self.payload = m_payload
+        self.options = {}
+        self.payload = bytes(0)
         self.token = m_token
 
         # Send / receive address
@@ -152,14 +149,14 @@ class CoAPPacket:
     # Parsarea este facuta dupa RFC7252
     def parse(self, data):
         if data is None:
-            raise CoAPException("No data provided")
+            raise ParseException("No data provided")
 
         bytecount = len(data)
         bytesdone = 0
 
-        #primii 4 biti sunt obligatorii in orice pachet CoAP
+        # primii 4 biti sunt obligatorii in orice pachet CoAP
         if bytecount < 4:
-            raise CoAPException("Not a CoAP packet")
+            raise ParseException("Not a CoAP packet")
 
         # Header Base
 
@@ -175,12 +172,9 @@ class CoAPPacket:
         # Tokens
 
         if bytecount < bytesdone + token_length:
-            raise CoAPException("Bad packet")
+            raise ParseException("Bad packet")
 
-        self.token = bytes(token_length)
-
-        for i in range(0, token_length):
-            self.token[i] = data[4 + i]
+        self.token = bytes(data[4:(4 + token_length)])
 
         bytesdone += token_length
 
@@ -240,7 +234,7 @@ class CoAPPacket:
         token_length = len(self.token)
 
         if token_length > 8:
-            raise CoAPException("Token must be between 0 and 8 bytes (got {0})".format(token_length))
+            raise ParseException("Token must be between 0 and 8 bytes (got {0})".format(token_length))
 
         data = [
             ((0x3 & self.version) << 6) | ((0x3 & self.type) << 4) | (0xF & token_length),
@@ -333,28 +327,34 @@ class CoAPPacket:
 
 
 # Creates a reset reply with the given message ID
-def make_reset(msg_id):
-    reply = CoAPPacket()
+def make_reset(msg_id, msg_token):
+    reply = Packet()
     reply.version = COAP_VERSION
     reply.type = TYPE_RESET
     reply.code = MSG_EMPTY
+    reply.msg_id = msg_id
+    reply.token = msg_token
     return reply
 
 
 # Creates an empty ACK message with the given message ID
 # This can be used to separate response from request acknowledgement
-def make_empty_ack(msg_id):
-    reply = CoAPPacket()
+def make_empty_ack(msg_id, msg_token):
+    reply = Packet()
     reply.version = COAP_VERSION
     reply.type = TYPE_ACK
     reply.code = MSG_EMPTY
+    reply.msg_id = msg_id
+    reply.token = msg_token
     return reply
 
 
-def make_not_implemented(msg_id):
-    reply = CoAPPacket()
+def make_not_implemented(msg_id, msg_token):
+    reply = Packet()
     reply.version = COAP_VERSION
     reply.type = TYPE_ACK
     reply.code = MSG_NOT_IMPLEMENTED
+    reply.msg_id = msg_id
+    reply.token = msg_token
     reply.payload = bytes("The message type received is unsupported!")
     return reply
