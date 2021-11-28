@@ -356,5 +356,4 @@ def make_not_implemented(msg_id, msg_token):
     reply.code = MSG_NOT_IMPLEMENTED
     reply.msg_id = msg_id
     reply.token = msg_token
-    reply.payload = bytes("The message type received is unsupported!")
     return reply

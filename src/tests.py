@@ -34,28 +34,7 @@ def showhelp():
     exit(0)
 
 
-def create(path, objtype):
-    if objtype not in ['folder', 'file']:
-        pass
-
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(SOCKET_ADDR)
-
-    token = randomize_token()
-    payload = {'cmd': 'create', 'path': path, 'type': objtype}
-
-    request = Packet(TYPE_NON, MSG_POST, randomize_id(), token)
-    request.payload = bytes(json_encoder.encode(payload), 'utf-8')
-
-    print('Using token', request.token, 'and ID', request.id)
-
-    # Send message
-
-    sock.sendto(request.tobytes(), TARGET_ADDR)
-    print('Sent request')
-
-    # Wait for a reply
-
+def wait_for_reply(sock):
     try:
         print('Waiting for reply; timeout =', REPLY_TIMEOUT, 'seconds')
         sock.settimeout(REPLY_TIMEOUT)
@@ -75,6 +54,27 @@ def create(path, objtype):
         print('Request timed out!')
     except ParseException as e:
         print('Packet caused a CoAP exception! Error message: ', e)
+
+
+def create(path, objtype):
+    if objtype not in ['folder', 'file']:
+        pass
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(SOCKET_ADDR)
+
+    token = randomize_token()
+    payload = {'cmd': 'create', 'path': path, 'type': objtype}
+
+    request = Packet(TYPE_NON, MSG_POST, randomize_id(), token)
+    request.payload = bytes(json_encoder.encode(payload), 'utf-8')
+
+    print('Using token', request.token, 'and ID', request.id)
+
+    sock.sendto(request.tobytes(), TARGET_ADDR)
+    print('Sent request')
+
+    wait_for_reply(sock)
 
     sock.close()
     pass
@@ -98,26 +98,101 @@ def delete(path):
     print('Sent request')
 
     # Wait for a reply
+    wait_for_reply(sock)
 
-    try:
-        print('Waiting for reply; timeout =', REPLY_TIMEOUT, 'seconds')
-        sock.settimeout(REPLY_TIMEOUT)
-        data, addr = sock.recvfrom(65527)
-        packet = Packet()
-        packet.addr = addr
-        packet.parse(data)
-        print('Received message from', packet.addr)
-        print('ID', packet.id)
-        print('Type', packet.type)
-        print('Code', packet.code)
-        print('Token: ', packet.token)
-        print('Payload: ', packet.payload)
-    except socket.timeout:
-        print('Request timed out!')
-    except TimeoutError:
-        print('Request timed out!')
-    except ParseException as e:
-        print('Packet caused a CoAP exception! Error message: ', e)
+    sock.close()
+    pass
+
+
+def openfile(path):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(SOCKET_ADDR)
+
+    token = randomize_token()
+    payload = {'cmd': 'open', 'path': path}
+
+    request = Packet(TYPE_NON, MSG_GET, randomize_id(), token)
+    request.payload = bytes(json_encoder.encode(payload), 'utf-8')
+
+    print('Using token', request.token, 'and ID', request.id)
+
+    # Send message
+
+    sock.sendto(request.tobytes(), TARGET_ADDR)
+    print('Sent request')
+
+    # Wait for a reply
+
+    wait_for_reply(sock)
+
+    sock.close()
+    pass
+
+
+def savefile(path, content):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(SOCKET_ADDR)
+
+    token = randomize_token()
+    payload = {'cmd': 'save', 'path': path, 'content': content}
+
+    request = Packet(TYPE_NON, MSG_POST, randomize_id(), token)
+    request.payload = bytes(json_encoder.encode(payload), 'utf-8')
+
+    print('Using token', request.token, 'and ID', request.id)
+
+    # Send message
+
+    sock.sendto(request.tobytes(), TARGET_ADDR)
+    print('Sent request')
+
+    wait_for_reply(sock)
+
+    sock.close()
+    pass
+
+
+def rename(path, name):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(SOCKET_ADDR)
+
+    token = randomize_token()
+    payload = {'cmd': 'rename', 'path': path, 'name': name}
+
+    request = Packet(TYPE_NON, MSG_POST, randomize_id(), token)
+    request.payload = bytes(json_encoder.encode(payload), 'utf-8')
+
+    print('Using token', request.token, 'and ID', request.id)
+
+    # Send message
+
+    sock.sendto(request.tobytes(), TARGET_ADDR)
+    print('Sent request')
+
+    wait_for_reply(sock)
+
+    sock.close()
+    pass
+
+
+def move(path, new_path):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(SOCKET_ADDR)
+
+    token = randomize_token()
+    payload = {'cmd': 'move', 'path': path, 'new_path': new_path}
+
+    request = Packet(TYPE_NON, MSG_POST, randomize_id(), token)
+    request.payload = bytes(json_encoder.encode(payload), 'utf-8')
+
+    print('Using token', request.token, 'and ID', request.id)
+
+    # Send message
+
+    sock.sendto(request.tobytes(), TARGET_ADDR)
+    print('Sent request')
+
+    wait_for_reply(sock)
 
     sock.close()
     pass
@@ -135,6 +210,14 @@ def main():
         create(sys.argv[2], sys.argv[3])
     elif cmd == 'delete' and argc == 3:
         delete(sys.argv[2])
+    elif cmd == 'open' and argc == 3:
+        openfile(sys.argv[2])
+    elif cmd == 'save' and argc >= 3:
+        savefile(sys.argv[2], ' '.join(sys.argv[3:]))
+    elif cmd == 'rename' and argc == 4:
+        rename(sys.argv[2], sys.argv[3])
+    elif cmd == 'move' and argc == 4:
+        move(sys.argv[2], sys.argv[3])
     else:
         print('Command was not understood!')
         showhelp()
