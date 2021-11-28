@@ -3,6 +3,7 @@ import os
 
 from coap import *
 import json
+import stat
 from pathlib import Path
 
 
@@ -136,13 +137,13 @@ class Parser:
         reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
         return reply
 
-    def command_create(self, packet: Packet, data, server_path):
-        if data['type'] is None or data['type'] not in ['file', 'folder']:  # type not recognised, send 4.00
+    def command_create(self, packet: Packet, p_data, server_path):
+        if p_data['type'] is None or p_data['type'] not in ['file', 'folder']:  # type not recognised, send 4.00
             reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
             reply.payload = bytes('Requested FS object type is invalid', 'utf-8')
             return reply
 
-        if data['type'] == 'file':  # creez un fisier
+        if p_data['type'] == 'file':  # creez un fisier
             try:
                 with open(server_path, mode='x'):
                     data = {'client_cmd': 'create', 'status': 'created'}
@@ -169,7 +170,7 @@ class Parser:
                 reply.payload = bytes('File not created', 'utf-8')
                 return reply
 
-        elif data['type'] == 'folder':  # creez un folder
+        elif p_data['type'] == 'folder':  # creez un folder
             try:
                 os.mkdir(server_path)
 
@@ -198,7 +199,7 @@ class Parser:
                 return reply
         return None
 
-    def command_delete(self, packet, data, server_path):
+    def command_delete(self, packet, p_data, server_path):
         if not os.path.exists(server_path):
             reply = Packet(TYPE_ACK, MSG_NOT_FOUND, packet.id, packet.token)
             reply.payload = bytes('Object at given path does not exist', 'utf-8')
@@ -233,7 +234,7 @@ class Parser:
             print('Encountered a problem when deleting object', server_path)
             return reply
 
-    def command_open(self, packet, data, server_path):
+    def command_open(self, packet, p_data, server_path):
         if not os.path.exists(server_path):
             reply = Packet(TYPE_ACK, MSG_NOT_FOUND, packet.id, packet.token)
             reply.payload = bytes('The given path does not exist', 'utf-8')
@@ -262,8 +263,8 @@ class Parser:
 
             print('Encountered a problem while opening file', server_path)
 
-    def command_save(self, packet, data, server_path):
-        if not data['content']:
+    def command_save(self, packet, p_data, server_path):
+        if not p_data['content']:
             reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
             reply.payload = bytes('No content was provided', 'utf-8')
 
@@ -285,7 +286,7 @@ class Parser:
             return reply
         try:
             with open(server_path, 'w') as file:
-                file.write(data['content'])
+                file.write(p_data['content'])
                 data = {'client_cmd': 'open', 'status': 'modified'}
 
                 reply = Packet(TYPE_ACK, MSG_CHANGED, packet.id, packet.token)
@@ -298,8 +299,8 @@ class Parser:
 
             print('Encountered a problem while opening file', server_path)
 
-    def command_rename(self, packet, data, server_path: str):
-        if not data['name'] or '/' in data['name']:
+    def command_rename(self, packet, p_data, server_path: str):
+        if not p_data['name'] or '/' in p_data['name']:
             reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
             reply.payload = bytes('No new name was provided, or name is invalid', 'utf-8')
 
@@ -313,7 +314,7 @@ class Parser:
             print('Path does not exist')
             return reply
 
-        new_path = server_path[:(server_path.rindex('/') + 1)] + data['name']
+        new_path = server_path[:(server_path.rindex('/') + 1)] + p_data['name']
 
         if os.path.exists(new_path):
             reply = Packet(TYPE_ACK, MSG_FORBIDDEN, packet.id, packet.token)
@@ -337,15 +338,77 @@ class Parser:
 
             print('Failed to rename object', server_path, 'to', new_path)
 
-    def command_move(self, packet, data, server_path):
-        reply = make_not_implemented(packet.id, packet.token)
-        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
-        return reply
+    def command_move(self, packet, p_data, server_path):
+        new_path = self.__validate_path(p_data['new_path'])
 
-    def command_details(self, packet, data, server_path):
-        reply = make_not_implemented(packet.id, packet.token)
-        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
-        return reply
+        if new_path is None:
+            reply = Packet(TYPE_ACK, MSG_BAD_REQUEST, packet.id, packet.token)
+            reply.payload = bytes('No new path was provided, or path is invalid', 'utf-8')
+
+            print('No new path was provided, or path is invalid')
+            return reply
+
+        if not os.path.exists(server_path):
+            reply = Packet(TYPE_ACK, MSG_NOT_FOUND, packet.id, packet.token)
+            reply.payload = bytes('The given source path does not exist', 'utf-8')
+
+            print('Source path does not exist')
+            return reply
+
+        if os.path.exists(new_path):
+            reply = Packet(TYPE_ACK, MSG_FORBIDDEN, packet.id, packet.token)
+            reply.payload = bytes('An object already exists at the destination path', 'utf-8')
+
+            print('An object already exists at the destination path')
+            return reply
+
+        try:
+            os.replace(server_path, new_path)
+            data = {'client_cmd': 'move', 'status': 'moved'}
+
+            reply = Packet(TYPE_ACK, MSG_CHANGED, packet.id, packet.token)
+            reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
+
+            print('Moved object', server_path, 'to', new_path)
+            return reply
+        except OSError:
+            reply = Packet(TYPE_ACK, MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
+            reply.payload = bytes('Failed to move object', 'utf-8')
+
+            print('Failed to move object', server_path, 'to', new_path)
+
+    def command_details(self, packet, p_data, server_path):
+        if not os.path.exists(server_path):
+            reply = Packet(TYPE_ACK, MSG_NOT_FOUND, packet.id, packet.token)
+            reply.payload = bytes('Path was not found', 'utf-8')
+
+            print('Path was not found')
+            return reply
+
+        try:
+            data = {'client_cmd': 'details', 'path': p_data['path']}
+
+            stats = os.stat(server_path)
+
+            if stat.S_ISDIR(stats.st_mode):
+                data['type'] = 'folder'
+                data['dir_contents'] = os.listdir(server_path)
+            elif stat.S_ISREG(stats.st_mode):
+                data['type'] = 'file'
+                data['size'] = stats.st_size
+            else:
+                data['type'] = 'unknown'
+
+            reply = Packet(TYPE_ACK, MSG_CHANGED, packet.id, packet.token)
+            reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
+
+            print('Sent data about object', server_path)
+            return reply
+        except OSError:
+            reply = Packet(TYPE_ACK, MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
+            reply.payload = bytes('Failed to retrieve data', 'utf-8')
+
+            print('Failed to send data about object', server_path)
 
     def command_search(self, packet, data, server_path):
         reply = make_not_implemented(packet.id, packet.token)

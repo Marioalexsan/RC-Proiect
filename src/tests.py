@@ -198,6 +198,29 @@ def move(path, new_path):
     pass
 
 
+def details(path):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(SOCKET_ADDR)
+
+    token = randomize_token()
+    payload = {'cmd': 'details', 'path': path}
+
+    request = Packet(TYPE_NON, MSG_GET, randomize_id(), token)
+    request.payload = bytes(json_encoder.encode(payload), 'utf-8')
+
+    print('Using token', request.token, 'and ID', request.id)
+
+    # Send message
+
+    sock.sendto(request.tobytes(), TARGET_ADDR)
+    print('Sent request')
+
+    wait_for_reply(sock)
+
+    sock.close()
+    pass
+
+
 def main():
     argc = len(sys.argv)
 
@@ -218,6 +241,8 @@ def main():
         rename(sys.argv[2], sys.argv[3])
     elif cmd == 'move' and argc == 4:
         move(sys.argv[2], sys.argv[3])
+    elif cmd == 'details' and argc == 3:
+        details(sys.argv[2])
     else:
         print('Command was not understood!')
         showhelp()
