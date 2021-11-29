@@ -56,17 +56,13 @@ def wait_for_reply(sock):
         print('Packet caused a CoAP exception! Error message: ', e)
 
 
-def create(path, objtype):
+def create(sock, path, objtype):
     if objtype not in ['folder', 'file']:
         pass
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(SOCKET_ADDR)
-
-    token = randomize_token()
     payload = {'cmd': 'create', 'path': path, 'type': objtype}
 
-    request = Packet(TYPE_NON, MSG_POST, randomize_id(), token)
+    request = Packet(TYPE_NON, MSG_POST, randomize_id(), randomize_token())
     request.payload = bytes(json_encoder.encode(payload), 'utf-8')
 
     print('Using token', request.token, 'and ID', request.id)
@@ -75,19 +71,13 @@ def create(path, objtype):
     print('Sent request')
 
     wait_for_reply(sock)
-
-    sock.close()
     pass
 
 
-def delete(path):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(SOCKET_ADDR)
-
-    token = randomize_token()
+def delete(sock, path):
     payload = {'cmd': 'delete', 'path': path}
 
-    request = Packet(TYPE_NON, MSG_POST, randomize_id(), token)
+    request = Packet(TYPE_NON, MSG_POST, randomize_id(), randomize_token())
     request.payload = bytes(json_encoder.encode(payload), 'utf-8')
 
     print('Using token', request.token, 'and ID', request.id)
@@ -99,19 +89,13 @@ def delete(path):
 
     # Wait for a reply
     wait_for_reply(sock)
-
-    sock.close()
     pass
 
 
-def openfile(path):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(SOCKET_ADDR)
-
-    token = randomize_token()
+def openfile(sock, path):
     payload = {'cmd': 'open', 'path': path}
 
-    request = Packet(TYPE_NON, MSG_GET, randomize_id(), token)
+    request = Packet(TYPE_NON, MSG_GET, randomize_id(), randomize_token())
     request.payload = bytes(json_encoder.encode(payload), 'utf-8')
 
     print('Using token', request.token, 'and ID', request.id)
@@ -124,19 +108,13 @@ def openfile(path):
     # Wait for a reply
 
     wait_for_reply(sock)
-
-    sock.close()
     pass
 
 
-def savefile(path, content):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(SOCKET_ADDR)
-
-    token = randomize_token()
+def savefile(sock, path, content):
     payload = {'cmd': 'save', 'path': path, 'content': content}
 
-    request = Packet(TYPE_NON, MSG_POST, randomize_id(), token)
+    request = Packet(TYPE_NON, MSG_POST, randomize_id(), randomize_token())
     request.payload = bytes(json_encoder.encode(payload), 'utf-8')
 
     print('Using token', request.token, 'and ID', request.id)
@@ -147,19 +125,13 @@ def savefile(path, content):
     print('Sent request')
 
     wait_for_reply(sock)
-
-    sock.close()
     pass
 
 
-def rename(path, name):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(SOCKET_ADDR)
-
-    token = randomize_token()
+def rename(sock, path, name):
     payload = {'cmd': 'rename', 'path': path, 'name': name}
 
-    request = Packet(TYPE_NON, MSG_POST, randomize_id(), token)
+    request = Packet(TYPE_NON, MSG_POST, randomize_id(), randomize_token())
     request.payload = bytes(json_encoder.encode(payload), 'utf-8')
 
     print('Using token', request.token, 'and ID', request.id)
@@ -170,19 +142,13 @@ def rename(path, name):
     print('Sent request')
 
     wait_for_reply(sock)
-
-    sock.close()
     pass
 
 
-def move(path, new_path):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(SOCKET_ADDR)
-
-    token = randomize_token()
+def move(sock, path, new_path):
     payload = {'cmd': 'move', 'path': path, 'new_path': new_path}
 
-    request = Packet(TYPE_NON, MSG_POST, randomize_id(), token)
+    request = Packet(TYPE_NON, MSG_POST, randomize_id(), randomize_token())
     request.payload = bytes(json_encoder.encode(payload), 'utf-8')
 
     print('Using token', request.token, 'and ID', request.id)
@@ -193,19 +159,13 @@ def move(path, new_path):
     print('Sent request')
 
     wait_for_reply(sock)
-
-    sock.close()
     pass
 
 
-def details(path):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(SOCKET_ADDR)
-
-    token = randomize_token()
+def details(sock, path):
     payload = {'cmd': 'details', 'path': path}
 
-    request = Packet(TYPE_NON, MSG_GET, randomize_id(), token)
+    request = Packet(TYPE_NON, MSG_GET, randomize_id(), randomize_token())
     request.payload = bytes(json_encoder.encode(payload), 'utf-8')
 
     print('Using token', request.token, 'and ID', request.id)
@@ -216,8 +176,6 @@ def details(path):
     print('Sent request')
 
     wait_for_reply(sock)
-
-    sock.close()
     pass
 
 
@@ -229,23 +187,28 @@ def main():
 
     cmd = sys.argv[1]
 
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(SOCKET_ADDR)
+
     if cmd == 'create' and argc == 4:
-        create(sys.argv[2], sys.argv[3])
+        create(sock, sys.argv[2], sys.argv[3])
     elif cmd == 'delete' and argc == 3:
-        delete(sys.argv[2])
+        delete(sock, sys.argv[2])
     elif cmd == 'open' and argc == 3:
-        openfile(sys.argv[2])
+        openfile(sock, sys.argv[2])
     elif cmd == 'save' and argc >= 3:
-        savefile(sys.argv[2], ' '.join(sys.argv[3:]))
+        savefile(sock, sys.argv[2], ' '.join(sys.argv[3:]))
     elif cmd == 'rename' and argc == 4:
-        rename(sys.argv[2], sys.argv[3])
+        rename(sock, sys.argv[2], sys.argv[3])
     elif cmd == 'move' and argc == 4:
-        move(sys.argv[2], sys.argv[3])
+        move(sock, sys.argv[2], sys.argv[3])
     elif cmd == 'details' and argc == 3:
-        details(sys.argv[2])
+        details(sock, sys.argv[2])
     else:
         print('Command was not understood!')
         showhelp()
+
+    sock.close()
 
 
 if __name__ == '__main__':

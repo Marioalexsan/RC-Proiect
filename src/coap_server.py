@@ -36,7 +36,15 @@ class Server:
 
         # Msg Callback dictionary stores callbacks that are called for specific message codes
         self.receivers: Dict[Tuple[int, int], Callable[[Packet], Packet]] = {}
+
+        # Used for handling replies that were lost
         self.on_reply_lost: Optional[Callable[[Packet], None]] = None
+
+        # Used for logging purposes
+        self.on_request_received: Optional[Callable[[Packet], None]] = None
+
+        # Used for logging purposes
+        self.on_reply_sent: Optional[Callable[[Packet], None]] = None
 
         # Configuration
         self.config: Dict[str, Any] = {
@@ -153,6 +161,9 @@ class Server:
                 data, packet.addr = self.__sock.recvfrom(self.config['maxdatasize'])
                 packet.parse(data)
 
+                if callable(self.on_request_received):
+                    self.on_request_received(packet)
+
             except timeout:
                 continue
             except ParseException as e:
@@ -192,6 +203,9 @@ class Server:
 
         try:
             self.__sock.sendto(packet.tobytes(), packet.addr)
+
+            if callable(self.on_reply_sent):
+                self.on_reply_sent(packet)
         except Exception as e:
             print("Couldn't send packet due to exception {0}".format(e))
 

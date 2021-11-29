@@ -357,3 +357,63 @@ def make_not_implemented(msg_id, msg_token):
     reply.msg_id = msg_id
     reply.token = msg_token
     return reply
+
+
+def get_reply_type(packet: Packet):
+    if packet.type == TYPE_CON:
+        return TYPE_ACK
+    elif packet.type == TYPE_NON:
+        return TYPE_NON
+    else:
+        return TYPE_ACK
+
+
+def type_str(value):
+    strmap = {
+        TYPE_CON: 'CON',
+        TYPE_NON: 'NON',
+        TYPE_ACK: 'ACK',
+        TYPE_RESET: 'RESET'
+    }
+
+    return strmap[value]
+
+
+def code_str(value):
+    strmap = {
+        MSG_EMPTY: 'EMPTY',
+
+        MSG_GET: 'GET',
+        MSG_POST: 'POST',
+        MSG_PUT: 'PUT',
+        MSG_DELETE: 'DELETE',
+
+        MSG_CREATED: 'CREATED',
+        MSG_DELETED: 'DELETED',
+        MSG_VALID: 'VALID',
+        MSG_CHANGED: 'CHANGED',
+        MSG_CONTENT: 'CONTENT',
+
+        MSG_BAD_REQUEST: 'BAD REQUEST',
+        MSG_UNAUTHORIZED: 'UNAUTHORIZED',
+        MSG_BAD_OPTION: 'BAD OPTION',
+        MSG_FORBIDDEN: 'FORBIDDEN',
+        MSG_NOT_FOUND: 'NOT FOUND',
+        MSG_METHOD_NOT_ALLOWED: 'METHOD NOT ALLOWED',
+        MSG_NOT_ACCEPTABLE: 'NOT ACCEPTABLE',
+        MSG_REQUEST_ENTITY_INCOMPLETE: 'RE INCOMPLETE',
+        MSG_CONFLICT: 'CONFLICT',
+        MSG_PRECONDITION_FAILED: 'PRECONDITION FAILED',
+        MSG_REQUEST_ENTITY_TOO_LARGE: 'RE TOO LARGE',
+        MSG_UNSUPPORTED_CONTENT_FORMAT: 'UNSUPPORTED CONTENT FORMAT',
+
+        MSG_INTERNAL_SERVER_ERROR: 'INTERNAL SERVER ERROR',
+        MSG_NOT_IMPLEMENTED: 'NOT IMPLEMENTED',
+        MSG_BAD_GATEWAY: 'BAD GATEWAY',
+        MSG_SERVICE_UNAVAILABLE: 'SERVICE UNAVAILABLE',
+        MSG_GATEWAY_TIMEOUT: 'GATEWAY TIMEOUT',
+        MSG_PROXYING_NOT_SUPPORTED: 'PROXYING NOT SUPPORTED',
+    }
+
+    return strmap[value]
+
