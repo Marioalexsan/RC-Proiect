@@ -393,6 +393,11 @@ class Parser:
             if stat.S_ISDIR(stats.st_mode):
                 data['type'] = 'folder'
                 data['dir_contents'] = os.listdir(server_path)
+                for dirs in data['dir_contents']:
+                    dirs_path = os.stat(server_path + '/' + dirs)
+                    if stat.S_ISDIR(dirs_path.st_mode):
+                        data['dir_contents'] += os.listdir(server_path)
+
             elif stat.S_ISREG(stats.st_mode):
                 data['type'] = 'file'
                 data['size'] = stats.st_size
