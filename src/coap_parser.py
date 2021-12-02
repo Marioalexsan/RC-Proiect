@@ -5,6 +5,7 @@ from coap import *
 import json
 import stat
 from pathlib import Path
+from queue import LifoQueue
 
 
 class Parser:
@@ -15,7 +16,8 @@ class Parser:
 
         self.get_commands = {
             'open': self.command_open,
-            'details': self.command_details
+            'details': self.command_details,
+            'search': self.command_search,
         }
 
         self.post_commands = {
@@ -415,7 +417,74 @@ class Parser:
 
             print('Failed to send data about object', server_path)
 
-    def command_search(self, packet, data, server_path):
-        reply = make_not_implemented(packet.id, packet.token)
-        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
+    def command_search(self, packet, p_data, server_path):
+        #reply = make_not_implemented(packet.id, packet.token)
+        #reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
+
+        if not os.path.exists(server_path):
+            reply = Packet(get_reply_type(packet), MSG_NOT_FOUND, packet.id, packet.token)
+            reply.payload = bytes('Path was not found', 'utf-8')
+
+            print('Path was not found')
+            return reply
+
+        try:
+
+            data = {'client_cmd': 'search', 'search_path': p_data['result_path'], 'target_name_regex': p_data['target_name_regex']}
+
+            stats_last_elem = os.stat(server_path)
+            stack = LifoQueue()
+            stack.put(os.listdir(server_path))
+            last_path = server_path
+
+            while not stack.empty():  # cat timp am elemente in stack
+                last_elem = stack.get()  # scot element / update ultim element
+
+                #update la path
+                last_path = os.path.join(last_path, last_elem)
+                last_path = os.path.normcase(last_path)
+                last_path = os.path.normpath(last_path)
+                last_path = last_path.replace('\\', '/')
+
+                #update la stats
+                stats_last_elem = os.stat(last_path)
+
+                # verific ce tip este
+                if stat.S_ISDIR(stats_last_elem.st_mode): #daca e director
+                    #verific daca gasesc regex si aici
+                    if p_data['target_name_regex'] in last_elem:
+                        #adaug in data
+                        data['results'] += last_elem
+                        data['result_type'] += 'folder'
+                        data['result_path'] += last_path
+
+                    #desfac folder pentru a cauta mai departe
+                    stack.put(os.listdir(last_path)) #adaug toate fisierele din folderul scos
+
+                elif stat.S_ISREG(stats_last_elem.st_mode): #altfel daca e fisier
+                    if p_data['target_name_regex'] in last_elem:
+                        #adaug in data
+                        data['results'] += last_elem
+                        data['result_type'] += 'file'
+                        data['result_path'] += last_path
+
+                        #ma intorc cu un folder inapoi
+                        last_path = last_path.split('/', 1)[0]
+
+                else: #altfel
+                    data['results'] += 'None'
+                    data['result_type'] += 'unknown'
+                    data['result_path'] += last_path
+
+
+        except OSError:
+            reply = Packet(get_reply_type(packet), MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
+            reply.payload = bytes('Failed to retrieve data', 'utf-8')
+
+            print('Failed to send data about object', server_path)
+            return reply
+
+
+        reply = Packet(get_reply_type(packet), MSG_SEARCH, packet.id, packet.token)
+        reply.payload = bytes('Search results', 'utf-8')
         return reply
