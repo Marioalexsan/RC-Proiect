@@ -53,6 +53,14 @@ class Parser:
 
         return path
 
+    def __root_path(self):
+        root = os.path.join(os.getcwd(), self.server_root)
+        root = os.path.normcase(root)
+        root = os.path.normpath(root)
+        root = root.replace('\\', '/')
+
+        return root
+
     def onget(self, packet: Packet):
         # TODO: Implement this properly
         # TODO: What goes here: command 'details', 'open'
@@ -66,6 +74,11 @@ class Parser:
             pass
 
         server_path = self.__validate_path(data['path'])
+
+        can_use_root = ['details']
+
+        if server_path is None and data['path'] == '/' and data['cmd'] in can_use_root:
+            server_path = self.__root_path()
 
         if data['cmd'] is None or data['path'] is None:
             print('Received a malformatted request')
@@ -100,6 +113,11 @@ class Parser:
             pass
 
         server_path = self.__validate_path(data['path'])
+
+        can_use_root = []
+
+        if server_path is None and data['path'] == '/' and data['cmd'] in can_use_root:
+            server_path = self.__root_path()
 
         if data['cmd'] is None or data['path'] is None:
             print('Received a malformatted request')
@@ -143,6 +161,9 @@ class Parser:
             pass
 
         server_path = self.__validate_path(data['path'])
+
+        if server_path is None and data['path'] == '/':
+            server_path = self.__root_path()
 
         if data['cmd'] is None or data['path'] is None:
             print('Received a malformatted request')
@@ -232,7 +253,7 @@ class Parser:
             if os.path.isfile(server_path):  # sterg un fisier
                 os.remove(server_path)
                 data = {'client_cmd': 'delete', 'status': 'deleted file'}
-            elif os.path.isdir(server_path):
+            elif os.path.isdir(server_path) and len(os.listdir(server_path)) == 0:
                 os.rmdir(server_path)
                 data = {'client_cmd': 'delete', 'status': 'deleted folder'}
             else:
@@ -414,10 +435,6 @@ class Parser:
             if stat.S_ISDIR(stats.st_mode):
                 data['type'] = 'folder'
                 data['dir_contents'] = os.listdir(server_path)
-                for dirs in data['dir_contents']:
-                    dirs_path = os.stat(server_path + '/' + dirs)
-                    if stat.S_ISDIR(dirs_path.st_mode):
-                        data['dir_contents'] += os.listdir(server_path)
 
             elif stat.S_ISREG(stats.st_mode):
                 data['type'] = 'file'
@@ -446,57 +463,71 @@ class Parser:
 
         try:
 
-            data = {'client_cmd': 'search', 'search_path': p_data['path'], 'target_name_regex': p_data['target_name_regex'],
-                    'results': '', 'result_type': '', 'result_path': ''}
+            data = {'client_cmd': 'search', 'path': p_data['path'], 'results': []}
 
-            stats_last_elem = os.stat(server_path)
+            search_path = server_path
+
+            root_stats = os.stat(server_path)
+
+            if not stat.S_ISDIR(root_stats.st_mode):
+                reply = Packet(get_reply_type(packet), MSG_BAD_REQUEST, packet.id, packet.token)
+                reply.payload = bytes('The provided search path must be a folder.', 'utf-8')
+
+                print('Search path is not a folder', server_path)
+                return reply
+
             stack = LifoQueue()
-            for p in os.listdir(server_path):
-                stack.put(p)
 
-            last_path = server_path
+            # Put the folder and its relative path together, so we can keep track of stuff.
+            stack.put(('', os.listdir(search_path)))
 
             while not stack.empty():  # cat timp am elemente in stack
-                last_elem = stack.get()  # scot element / update ultim element
+                rel_path, folder_contents = stack.get()  # scot element / update ultim element
 
-                #update la path
-                last_path = os.path.join(last_path, last_elem)
-                last_path = os.path.normcase(last_path)
-                last_path = os.path.normpath(last_path)
-                last_path = last_path.replace('\\', '/')
+                for obj in folder_contents:
+                    # update la stats
 
-                #update la stats
-                stats_last_elem = os.stat(last_path)
+                    full_path = os.path.normpath(os.path.join(server_path, rel_path, obj)).replace('\\', '/')
+                    rel_obj_path = os.path.normpath(os.path.join(rel_path, obj)).replace('\\', '/')
+                    object_stats = os.stat(full_path)
 
-                # verific ce tip este
-                if stat.S_ISDIR(stats_last_elem.st_mode): #daca e director
-                    #verific daca gasesc regex si aici
-                    if p_data['target_name_regex'] in last_elem:
-                        #adaug in data
-                        data['results'] += last_elem
-                        data['result_type'] += 'folder'
-                        data['result_path'] += last_path
+                    # verific ce tip este
+                    if stat.S_ISDIR(object_stats.st_mode):  # daca e director
+                        # desfac folder pentru a cauta mai departe
+                        # adaug toate fisierele din folderul scos
+                        stack.put((rel_obj_path, os.listdir(full_path)))
 
-                    #desfac folder pentru a cauta mai departe
-                    #adaug toate fisierele din folderul scos
-                    for p in os.listdir(last_path):
-                        stack.put(p)
+                        # verific daca gasesc regex si aici
+                        if p_data['target_name_regex'] in obj:
+                            # adaug in data
+                            data['results'].append({
+                                'name': obj,
+                                'type': 'folder',
+                                'path': rel_obj_path
+                            })
 
-                elif stat.S_ISREG(stats_last_elem.st_mode): #altfel daca e fisier
-                    if p_data['target_name_regex'] in last_elem:
-                        #adaug in data
-                        data['results'] += last_elem
-                        data['result_type'] += 'file'
-                        data['result_path'] += last_path
+                    elif stat.S_ISREG(object_stats.st_mode):  # altfel daca e fisier
+                        if p_data['target_name_regex'] in obj:
+                            # adaug in data
+                            data['results'].append({
+                                'name': obj,
+                                'type': 'file',
+                                'path': rel_obj_path
+                            })
 
-                        #ma intorc cu un folder inapoi
-                        last_path = last_path.split('/', 1)[0]
+                    else:
+                        if p_data['target_name_regex'] in obj:
+                            data['results'].append({
+                                'name': obj,
+                                'type': 'unknown',
+                                'path': rel_obj_path
+                            })
 
-                else: #altfel
-                    data['results'] += 'None'
-                    data['result_type'] += 'unknown'
-                    data['result_path'] += last_path
+            reply = Packet(get_reply_type(packet), MSG_SEARCH, packet.id, packet.token)
+            reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
 
+            print('Sent data about object', server_path)
+            return reply
 
         except OSError:
             reply = Packet(get_reply_type(packet), MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
@@ -504,8 +535,3 @@ class Parser:
 
             print('Failed to send data about object', server_path)
             return reply
-
-
-        reply = Packet(get_reply_type(packet), MSG_SEARCH, packet.id, packet.token)
-        reply.payload = bytes('Search results', 'utf-8')
-        return reply

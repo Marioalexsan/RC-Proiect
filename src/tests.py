@@ -10,7 +10,7 @@ TARGET_ADDR = ('127.0.0.1', 5683)
 REPLY_TIMEOUT = 10
 
 json_encoder = json.JSONEncoder()
-json_decoder = json.JSONEncoder()
+json_decoder = json.JSONDecoder()
 
 
 def randomize_id():
@@ -31,6 +31,12 @@ def showhelp():
     print('> Usage:')
     print('> \'python3 {0} create <path> [folder/file]\' to create a folder or file.'.format(name))
     print('> \'python3 {0} delete <path>\' to delete an object.'.format(name))
+    print('> \'python3 {0} open <path>\' to open file contents.'.format(name))
+    print('> \'python3 {0} save <path> <content>\' to save file contents.'.format(name))
+    print('> \'python3 {0} rename <path> <new name>\' to rename an object.'.format(name))
+    print('> \'python3 {0} move <path> <new path>\' to move an object.'.format(name))
+    print('> \'python3 {0} details <path>\' to receive details about an object.'.format(name))
+    print('> \'python3 {0} search <path> <regex>\' to search the folder contents for objects matching regex.'.format(name))
     exit(0)
 
 
@@ -47,7 +53,7 @@ def wait_for_reply(sock):
         print('Type', packet.type)
         print('Code', packet.code)
         print('Token: ', packet.token)
-        print('Payload: ', packet.payload)
+        print('Payload: ', json.dumps(json_decoder.decode(packet.payload.decode('utf-8')), sort_keys=True, indent=2))
     except socket.timeout:
         print('Request timed out!')
     except TimeoutError:
@@ -62,7 +68,7 @@ def create(sock, path, objtype):
 
     payload = {'cmd': 'create', 'path': path, 'type': objtype}
 
-    request = Packet(TYPE_NON, MSG_POST, randomize_id(), randomize_token())
+    request = Packet(TYPE_CON, MSG_POST, randomize_id(), randomize_token())
     request.payload = bytes(json_encoder.encode(payload), 'utf-8')
 
     print('Using token', request.token, 'and ID', request.id)
@@ -178,6 +184,7 @@ def details(sock, path):
     wait_for_reply(sock)
     pass
 
+
 def searchcommand(sock, path, target_name_regex):
     payload = {'cmd': 'search', 'path': path, 'target_name_regex': target_name_regex}
 
@@ -193,6 +200,7 @@ def searchcommand(sock, path, target_name_regex):
 
     wait_for_reply(sock)
     pass
+
 
 def main():
     argc = len(sys.argv)

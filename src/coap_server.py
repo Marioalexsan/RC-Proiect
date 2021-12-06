@@ -23,7 +23,7 @@ class PendingReply:
 class Server:
     # Initializes CoAP Server using default values for options
     def __init__(self):
-        self.ip = '127.0.0.1'
+        self.ip = ''
         self.port = 5683
         self.__thread: Optional[Thread] = None  # Update thread
         self.__stop_event = Event()  # Thread stops when this is set
