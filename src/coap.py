@@ -387,6 +387,7 @@ def code_str(value):
         MSG_POST: 'POST',
         MSG_PUT: 'PUT',
         MSG_DELETE: 'DELETE',
+        MSG_SEARCH: 'search',
 
         MSG_CREATED: 'CREATED',
         MSG_DELETED: 'DELETED',

@@ -5,9 +5,9 @@ from coap import *
 import json
 
 
-SOCKET_ADDR = ('127.0.0.1', 1337)
+SOCKET_ADDR = ('', 1337)
 TARGET_ADDR = ('127.0.0.1', 5683)
-REPLY_TIMEOUT = 45
+REPLY_TIMEOUT = 10
 
 json_encoder = json.JSONEncoder()
 json_decoder = json.JSONEncoder()
@@ -178,6 +178,21 @@ def details(sock, path):
     wait_for_reply(sock)
     pass
 
+def searchcommand(sock, path, target_name_regex):
+    payload = {'cmd': 'search', 'path': path, 'target_name_regex': target_name_regex}
+
+    request = Packet(TYPE_NON, MSG_SEARCH, randomize_id(), randomize_token())
+    request.payload = bytes(json_encoder.encode(payload), 'utf-8')
+
+    print('Using token', request.token, 'and ID', request.id)
+
+    # Send message
+
+    sock.sendto(request.tobytes(), TARGET_ADDR)
+    print('Sent request')
+
+    wait_for_reply(sock)
+    pass
 
 def main():
     argc = len(sys.argv)
@@ -204,6 +219,8 @@ def main():
         move(sock, sys.argv[2], sys.argv[3])
     elif cmd == 'details' and argc == 3:
         details(sock, sys.argv[2])
+    elif cmd == 'search' and argc == 4:
+        searchcommand(sock, sys.argv[2], sys.argv[3])
     else:
         print('Command was not understood!')
         showhelp()

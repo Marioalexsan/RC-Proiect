@@ -134,10 +134,29 @@ class Parser:
         return reply
 
     def onsearch(self, packet: Packet):
-        # TODO: Implement this properly
-        reply = make_not_implemented(packet.id, packet.token)
-        reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
-        return reply
+        payload = packet.payload.decode('utf-8')
+
+        data = None
+        try:
+            data = self.__jsondecoder.decode(payload)
+        except json.JSONDecodeError:
+            pass
+
+        server_path = self.__validate_path(data['path'])
+
+        if data['cmd'] is None or data['path'] is None:
+            print('Received a malformatted request')
+            reply = Packet(get_reply_type(packet), MSG_BAD_REQUEST, packet.id, packet.token)
+            reply.payload = bytes('Received a malformatted request', 'utf-8')
+            return reply
+
+        if server_path is None:
+            print('Received an invalid path.')
+            reply = Packet(get_reply_type(packet), MSG_BAD_REQUEST, packet.id, packet.token)
+            reply.payload = bytes('The path requested is invalid, or access has been denied by the server.', 'utf-8')
+            return reply
+
+        return self.command_search(packet, data, server_path)
 
     def command_create(self, packet: Packet, p_data, server_path):
         if p_data['type'] is None or p_data['type'] not in ['file', 'folder']:  # type not recognised, send 4.00
@@ -418,9 +437,6 @@ class Parser:
             print('Failed to send data about object', server_path)
 
     def command_search(self, packet, p_data, server_path):
-        #reply = make_not_implemented(packet.id, packet.token)
-        #reply.payload = bytes('Server does not support this command (yet)', 'utf-8')
-
         if not os.path.exists(server_path):
             reply = Packet(get_reply_type(packet), MSG_NOT_FOUND, packet.id, packet.token)
             reply.payload = bytes('Path was not found', 'utf-8')
@@ -430,11 +446,14 @@ class Parser:
 
         try:
 
-            data = {'client_cmd': 'search', 'search_path': p_data['result_path'], 'target_name_regex': p_data['target_name_regex']}
+            data = {'client_cmd': 'search', 'search_path': p_data['path'], 'target_name_regex': p_data['target_name_regex'],
+                    'results': '', 'result_type': '', 'result_path': ''}
 
             stats_last_elem = os.stat(server_path)
             stack = LifoQueue()
-            stack.put(os.listdir(server_path))
+            for p in os.listdir(server_path):
+                stack.put(p)
+
             last_path = server_path
 
             while not stack.empty():  # cat timp am elemente in stack
@@ -459,7 +478,9 @@ class Parser:
                         data['result_path'] += last_path
 
                     #desfac folder pentru a cauta mai departe
-                    stack.put(os.listdir(last_path)) #adaug toate fisierele din folderul scos
+                    #adaug toate fisierele din folderul scos
+                    for p in os.listdir(last_path):
+                        stack.put(p)
 
                 elif stat.S_ISREG(stats_last_elem.st_mode): #altfel daca e fisier
                     if p_data['target_name_regex'] in last_elem:
