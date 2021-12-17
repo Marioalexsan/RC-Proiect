@@ -1,6 +1,7 @@
 # coap_server.py
 # Implements the CoAP Server
 import random
+import select
 from threading import Thread, Event, Semaphore
 import time
 from socket import *
@@ -35,7 +36,7 @@ class Server:
         self.__last_time = 0
 
         # Msg Callback dictionary stores callbacks that are called for specific message codes
-        self.receivers: Dict[Tuple[int, int], Callable[[Packet], Packet]] = {}
+        self.packet_receivers: Dict[Tuple[int, int], Callable[[Packet], Packet]] = {}
 
         # Used for handling replies that were lost
         self.on_reply_lost: Optional[Callable[[Packet], None]] = None
@@ -151,9 +152,9 @@ class Server:
             self.__mutex.release()
 
             # Receive messages
-            # FIXME: Send a reset message for non-timeout exceptions? -mario
 
             data = None
+
             try:
                 self.__sock.settimeout(self.config['timeout'])
 
@@ -176,21 +177,41 @@ class Server:
                 print('Exception message: {0}'.format(e))
                 continue
 
-            if packet.type == TYPE_ACK:
-                # Stop retransmission for all packets (usually one?) that match the ACK's ID
+            # Stop retransmission for all (one?) packets that match the ACK's ID.
+            if packet.type == TYPE_ACK or packet.type == TYPE_RESET:
                 self.__mutex.acquire()
                 self.__con_replies = [msg for msg in self.__con_replies if msg.id != packet.id]
                 self.__mutex.release()
 
-            if packet.code in self.receivers:
-                reply = self.receivers[packet.code](packet)
+            # Ignore RESET messages - we don't do much with them
+            if packet.type == TYPE_RESET:
+                continue
 
+            # EMPTY is not allowed. Intercept and reply with RESET EMPTY if packet is CON or ACK.
+            if packet.code == MSG_EMPTY:
+                if packet.type in [TYPE_CON, TYPE_NON]:
+                    reply = make_reset(packet.id, bytes(0))
+                    self.send(reply)
+                continue
+
+            # Check if we know how to parse the packet
+            if packet.code in self.packet_receivers:
+                reply = self.packet_receivers[packet.code](packet)
+
+                # If the receiver returned a reply, send it
                 if isinstance(reply, Packet):
+                    reply.addr = packet.get_reply_type()
                     reply.addr = packet.addr
                     self.send(reply)
+
+                # No valid reply, send ACK INTERNAL ERROR if CON
+                elif packet.type == TYPE_CON:
+                    reply = Packet(TYPE_ACK, MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
+                    self.send(reply)
+
+            # We can't parse this - we'll use a server error instead of a non-descriptive RESET
             else:
-                # Send a generic server error
-                reply = make_not_implemented(packet.id, packet.token)
+                reply = Packet(packet.get_reply_type(), MSG_NOT_IMPLEMENTED, packet.id, packet.token)
                 reply.payload = bytes('Server does not support the request type', 'utf-8')
                 reply.addr = packet.addr
                 self.send(reply)

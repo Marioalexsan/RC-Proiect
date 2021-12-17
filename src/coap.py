@@ -325,37 +325,30 @@ class Packet:
 
         return text
 
+    def get_reply_type(self):
+        if self.type == TYPE_CON:
+            return TYPE_ACK
+        elif self.type == TYPE_NON:
+            return TYPE_NON
+        else:
+            return TYPE_ACK
+
 
 # Creates a reset reply with the given message ID
 def make_reset(msg_id, msg_token):
-    reply = Packet()
-    reply.version = COAP_VERSION
-    reply.type = TYPE_RESET
-    reply.code = MSG_EMPTY
-    reply.msg_id = msg_id
-    reply.token = msg_token
+    reply = Packet(TYPE_RESET, MSG_EMPTY, msg_id, msg_token)
     return reply
 
 
 # Creates an empty ACK message with the given message ID
 # This can be used to separate response from request acknowledgement
 def make_empty_ack(msg_id, msg_token):
-    reply = Packet()
-    reply.version = COAP_VERSION
-    reply.type = TYPE_ACK
-    reply.code = MSG_EMPTY
-    reply.msg_id = msg_id
-    reply.token = msg_token
+    reply = Packet(TYPE_ACK, MSG_EMPTY, msg_id, msg_token)
     return reply
 
 
 def make_not_implemented(msg_id, msg_token):
-    reply = Packet()
-    reply.version = COAP_VERSION
-    reply.type = TYPE_ACK
-    reply.code = MSG_NOT_IMPLEMENTED
-    reply.msg_id = msg_id
-    reply.token = msg_token
+    reply = Packet(TYPE_ACK, MSG_NOT_IMPLEMENTED, msg_id, msg_token)
     return reply
 
 

@@ -14,11 +14,11 @@ class Application(Tk):
         # Setup server
         self.server = Server()
 
-        self.server.receivers[MSG_GET] = self.parser.onget
-        self.server.receivers[MSG_POST] = self.parser.onpost
-        self.server.receivers[MSG_PUT] = self.parser.onput
-        self.server.receivers[MSG_DELETE] = self.parser.ondelete
-        self.server.receivers[MSG_SEARCH] = self.parser.onsearch
+        self.server.packet_receivers[MSG_GET] = self.parser.onget
+        self.server.packet_receivers[MSG_POST] = self.parser.onpost
+        self.server.packet_receivers[MSG_PUT] = self.parser.onput
+        self.server.packet_receivers[MSG_DELETE] = self.parser.ondelete
+        self.server.packet_receivers[MSG_SEARCH] = self.parser.onsearch
 
         self.server.on_reply_sent = self.log_reply
         self.server.on_request_received = self.log_request
@@ -35,7 +35,7 @@ class Application(Tk):
         frame.bind('<Destroy>', lambda event: self.server.stop())
         frame.grid()
 
-        self.log = ttk.Labelframe(frame, text='Messages will appear here...', width=320, height=480, padding=30)
+        self.log = ttk.Labelframe(frame, text='Messages will appear here...', padding=30)
         self.log.grid(column=0, row=0, rowspan=3)
 
         self.log_data = ttk.Label(self.log, text='')
