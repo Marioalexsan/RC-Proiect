@@ -283,16 +283,24 @@ class Parser:
             print('Path does not exist')
             return reply
 
-        if not os.path.isfile(server_path):
+        if not ( os.path.isfile(server_path) or os.path.isdir(server_path) ):
             reply = Packet(get_reply_type(packet), MSG_BAD_REQUEST, packet.id, packet.token)
-            reply.payload = bytes('The given path is not a file', 'utf-8')
-
-            print('Path is not a file')
+            reply.payload = bytes('The given path is an unknown object', 'utf-8')
+            print('Path is not a file or fordel')
             return reply
+
         try:
-            with open(server_path, 'r') as file:
-                contents = file.read(65527)
-                data = {'client_cmd': 'open', 'response': contents}
+            if os.path.isfile(server_path):
+                with open(server_path, 'r') as file:
+                    contents = file.read(65527)
+                    data = {'client_cmd': 'open', 'response': contents, 'type': 'file'}
+
+                    reply = Packet(get_reply_type(packet), MSG_CONTENT, packet.id, packet.token)
+                    reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
+                    return reply
+            elif os.path.isdir(server_path):
+                contents = os.listdir(server_path)
+                data = {'client_cmd': 'open', 'response': contents, 'type': 'folder'}
 
                 reply = Packet(get_reply_type(packet), MSG_CONTENT, packet.id, packet.token)
                 reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
