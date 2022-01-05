@@ -34,6 +34,7 @@ class Application(Tk):
         frame = ttk.Frame(self, padding=50)
         frame.bind('<Destroy>', lambda event: self.server.stop())
         frame.grid()
+        frame.place(relx=0.5, rely=0.5, anchor=CENTER)
 
         self.log = ttk.Labelframe(frame, text='Messages will appear here...', width=320, height=480, padding=30)
         self.log.grid(column=0, row=0, rowspan=3)

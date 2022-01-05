@@ -35,6 +35,9 @@ class Parser:
         if path is None:
             return None
 
+        if path[0] == '/' or path[0] == '\\':
+            path = path[1:]
+
         if os.path.isabs(path):
             return None
 
@@ -62,8 +65,6 @@ class Parser:
         return root
 
     def onget(self, packet: Packet):
-        # TODO: Implement this properly
-        # TODO: What goes here: command 'details', 'open'
 
         payload = packet.payload.decode('utf-8')
 
@@ -101,8 +102,6 @@ class Parser:
             return reply
 
     def onpost(self, packet: Packet):
-        # TODO: Implement this properly
-        # TODO: What goes here: commands 'create', 'save', 'delete', 'rename', 'move'
 
         payload = packet.payload.decode('utf-8')
 
