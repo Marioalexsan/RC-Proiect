@@ -5,6 +5,7 @@ from coap import *
 import json
 import stat
 from pathlib import Path
+from datetime import datetime, timezone
 from queue import LifoQueue
 
 
@@ -440,12 +441,20 @@ class Parser:
             stats = os.stat(server_path)
 
             if stat.S_ISDIR(stats.st_mode):
+
                 data['type'] = 'folder'
                 data['dir_contents'] = os.listdir(server_path)
+                # data['last_modified'] = datetime.fromtimestamp(stats.st_mtime, tz=timezone.utc)
+                data['last_accessed'] = stats.st_atime
+                data['last_modified'] = stats.st_mtime
+                data['create_time'] = stats.st_ctime
 
             elif stat.S_ISREG(stats.st_mode):
                 data['type'] = 'file'
                 data['size'] = stats.st_size
+                data['last_accessed'] = stats.st_atime
+                data['last_modified'] = stats.st_mtime
+                data['create_time'] = stats.st_ctime
             else:
                 data['type'] = 'unknown'
 
