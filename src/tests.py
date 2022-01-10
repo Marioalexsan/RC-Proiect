@@ -49,11 +49,13 @@ def wait_for_reply(sock):
         packet.addr = addr
         packet.parse(data)
         print('Received message from', packet.addr)
-        print('ID', packet.id)
-        print('Type', packet.type)
-        print('Code', packet.code)
-        print('Token: ', packet.token)
-        print('Payload: ', json.dumps(json_decoder.decode(packet.payload.decode('utf-8')), sort_keys=True, indent=2))
+        print('ID', packet.id, 'Type', packet.type, 'Code', packet.code, 'Token: ', packet.token)
+        print()
+        try:
+            print('Payload: ', json.dumps(json_decoder.decode(packet.payload.decode('utf-8')), sort_keys=True, indent=2))
+        except json.decoder.JSONDecodeError:
+            print('Message: ', packet.payload.decode('utf-8'))
+        print()
     except socket.timeout:
         print('Request timed out!')
     except TimeoutError:

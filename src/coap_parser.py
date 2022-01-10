@@ -35,8 +35,8 @@ class Parser:
         if path is None:
             return None
 
-        if os.path.isabs(path):
-            return None
+        if len(path) > 0 and path[0] == '/':
+            path = path[1:]
 
         root = os.path.join(os.getcwd(), self.server_root)
         root = os.path.normcase(root)
@@ -523,7 +523,7 @@ class Parser:
                                 'path': rel_obj_path
                             })
 
-            reply = Packet(get_reply_type(packet), MSG_SEARCH, packet.id, packet.token)
+            reply = Packet(get_reply_type(packet), MSG_CONTENT, packet.id, packet.token)
             reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
 
             print('Sent data about object', server_path)
