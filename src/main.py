@@ -3,8 +3,7 @@ from application import *
 
 def main():
     app = Application()
-    app.startapp()
-    app.quit()
+    app.run()
 
 
 if __name__ == '__main__':

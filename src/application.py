@@ -2,16 +2,22 @@ from tkinter import *
 from tkinter import ttk
 from coap_server import *
 from coap_parser import Parser
+from src.pygubuapp import PygubuApp
 
 
-class Application(Tk):
+# Overrides auto-generated UI from Pygubu
+class Application(PygubuApp):
     # Functie de initializare a GUI / constructor
     def __init__(self):
         super().__init__()
 
-        self.parser = Parser()
+        # Extra App setup
+
+        self.initialize_frame = {}
 
         # Setup server
+
+        self.parser = Parser()
         self.server = Server()
 
         self.server.packet_receivers[MSG_GET] = self.parser.onget
@@ -24,82 +30,66 @@ class Application(Tk):
         self.server.on_request_received = self.log_request
         self.__launch_time = time.time()
 
-        # Setup GUI
+    def run(self):
+        self.server.start()
+        super().run()
 
-        self.title("CoAP Server")
+    # Static UI Callbacks
 
-        self.geometry('800x600')
-        self.wm_resizable(False, False)
+    def on_quit_button(self):
+        self.on_quitapp()
+        self.mainwindow.destroy()
 
-        frame = ttk.Frame(self, padding=50)
-        frame.bind('<Destroy>', lambda event: self.server.stop())
-        frame.grid()
-        frame.place(relx=0.5, rely=0.5, anchor=CENTER)
+    def on_quitapp(self, event=None):
+        self.server.stop()
 
-        self.log = ttk.Labelframe(frame, text='Messages will appear here...', padding=30)
-        self.log.grid(column=0, row=0, rowspan=3)
-
-        self.log_data = ttk.Label(self.log, text='')
-        self.log_data.grid(column=0, row=0)
-
-        self.status = ttk.Label(frame, text='Server is off')
-        self.status.grid(column=1, row=0)
-        self.start_stop = ttk.Button(frame, text='Start', command=self.__onstart)
-        self.start_stop.grid(column=1, row=1)
-
-        ttk.Button(frame, text='Quit', command=self.__onquit).grid(column=1, row=2)
-
-        for child in frame.winfo_children():
-            child.grid_configure(padx=5, pady=5)
-
-        frame.pack()
-        self.__update_interface()
+    # Other
 
     def log_reply(self, packet: Packet):
+        log = self.get_widget('server_log')
+
         text = 'Sent reply {0} - {1} to {2}\n'.format(type_str(packet.type), code_str(packet.code), packet.addr)
-        self.log_data['text'] += '[{0:.2f}]'.format(time.time() - self.__launch_time) + text
+        log['text'] += '[{0:.2f}]'.format(time.time() - self.__launch_time) + text
         self.__trim_log()
         return
 
     def log_request(self, packet: Packet):
+        log = self.get_widget('server_log')
+
         text = 'Request {0} - {1} from {2}\n'.format(type_str(packet.type), code_str(packet.code), packet.addr)
-        self.log_data['text'] += '[{0:.2f}]'.format(time.time() - self.__launch_time) + text
+        log['text'] += '[{0:.2f}]'.format(time.time() - self.__launch_time) + text
 
         self.__trim_log()
         return
 
     def __trim_log(self):
-        log_text = self.log_data['text']
+        log = self.get_widget('server_log')
+
+        log_text = log['text']
         while len(log_text) > 800:
             try:
                 index = log_text.index('\n')
             except Exception:
                 break
             log_text = log_text[(index + 1):]
-        self.log_data['text'] = log_text
+        log['text'] = log_text
         return
 
-    def startapp(self):
-        self.mainloop()
+    # UI Utils (thanks BDHomework)
 
-    def __onstart(self):
-        self.server.start()
-        self.__update_interface()
+    def swap_frame(self, name):
+        if name in self.initialize_frame and callable(self.initialize_frame[name]):
+            self.initialize_frame[name]()
 
-    def __onstop(self):
-        self.server.stop()
-        self.__update_interface()
+        for k, v in self.mainwindow.children.items():
+            v.pack_forget()
 
-    def __onquit(self):
-        self.destroy()
-        self.server.stop()
+        target = self.builder.get_object(name)
 
-    def __update_interface(self):
-        if self.server.is_active():
-            self.status['text'] = 'Server is on'
-            self.start_stop['command'] = self.__onstop
-            self.start_stop['text'] = "Stop"
-        else:
-            self.status['text'] = 'Server is off'
-            self.start_stop['command'] = self.__onstart
-            self.start_stop['text'] = "Start"
+        if target not in self.mainwindow.winfo_children():
+            print('Warning: Swapping to a frame that isn\'t a scene!')
+
+        target.pack()
+
+    def get_widget(self, name):
+        return self.builder.get_object(name)
