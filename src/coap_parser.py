@@ -5,6 +5,7 @@ from coap import *
 import json
 import stat
 from pathlib import Path
+from datetime import datetime, timezone
 from queue import LifoQueue
 
 
@@ -62,8 +63,6 @@ class Parser:
         return root
 
     def onget(self, packet: Packet):
-        # TODO: Implement this properly
-        # TODO: What goes here: command 'details', 'open'
 
         payload = packet.payload.decode('utf-8')
 
@@ -101,8 +100,6 @@ class Parser:
             return reply
 
     def onpost(self, packet: Packet):
-        # TODO: Implement this properly
-        # TODO: What goes here: commands 'create', 'save', 'delete', 'rename', 'move'
 
         payload = packet.payload.decode('utf-8')
 
@@ -284,16 +281,24 @@ class Parser:
             print('Path does not exist')
             return reply
 
-        if not os.path.isfile(server_path):
+        if not ( os.path.isfile(server_path) or os.path.isdir(server_path) ):
             reply = Packet(get_reply_type(packet), MSG_BAD_REQUEST, packet.id, packet.token)
-            reply.payload = bytes('The given path is not a file', 'utf-8')
-
-            print('Path is not a file')
+            reply.payload = bytes('The given path is an unknown object', 'utf-8')
+            print('Path is not a file or fordel')
             return reply
+
         try:
-            with open(server_path, 'r') as file:
-                contents = file.read(65527)
-                data = {'client_cmd': 'open', 'response': contents}
+            if os.path.isfile(server_path):
+                with open(server_path, 'r') as file:
+                    contents = file.read(65527)
+                    data = {'client_cmd': 'open', 'response': contents, 'type': 'file'}
+
+                    reply = Packet(get_reply_type(packet), MSG_CONTENT, packet.id, packet.token)
+                    reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
+                    return reply
+            elif os.path.isdir(server_path):
+                contents = os.listdir(server_path)
+                data = {'client_cmd': 'open', 'response': contents, 'type': 'folder'}
 
                 reply = Packet(get_reply_type(packet), MSG_CONTENT, packet.id, packet.token)
                 reply.payload = bytes(self.__jsonencoder.encode(data), 'utf-8')
@@ -433,12 +438,20 @@ class Parser:
             stats = os.stat(server_path)
 
             if stat.S_ISDIR(stats.st_mode):
+
                 data['type'] = 'folder'
                 data['dir_contents'] = os.listdir(server_path)
+                # data['last_modified'] = datetime.fromtimestamp(stats.st_mtime, tz=timezone.utc)
+                data['last_accessed'] = stats.st_atime
+                data['last_modified'] = stats.st_mtime
+                data['create_time'] = stats.st_ctime
 
             elif stat.S_ISREG(stats.st_mode):
                 data['type'] = 'file'
                 data['size'] = stats.st_size
+                data['last_accessed'] = stats.st_atime
+                data['last_modified'] = stats.st_mtime
+                data['create_time'] = stats.st_ctime
             else:
                 data['type'] = 'unknown'
 
