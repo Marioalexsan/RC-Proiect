@@ -1,6 +1,7 @@
 # coap_parser.py
 import os
 
+import shutil
 from coap import *
 import json
 import stat
@@ -246,12 +247,11 @@ class Parser:
             print('Delete path does not exist')
             return reply
         try:
-            data = None
             if os.path.isfile(server_path):  # sterg un fisier
                 os.remove(server_path)
                 data = {'client_cmd': 'delete', 'status': 'deleted file'}
-            elif os.path.isdir(server_path) and len(os.listdir(server_path)) == 0:
-                os.rmdir(server_path)
+            elif os.path.isdir(server_path):
+                shutil.rmtree(server_path)
                 data = {'client_cmd': 'delete', 'status': 'deleted folder'}
             else:
                 reply = Packet(get_reply_type(packet), MSG_FORBIDDEN, packet.id, packet.token)
@@ -268,7 +268,7 @@ class Parser:
 
         except OSError:  # tratare eroare ce poate aparea la remove
             reply = Packet(get_reply_type(packet), MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
-            reply.payload = bytes('Failed to delete object')
+            reply.payload = bytes('Failed to delete object', 'utf-8')
 
             print('Encountered a problem when deleting object', server_path)
             return reply
