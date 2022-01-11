@@ -183,9 +183,14 @@ class Server:
                 self.__mutex.release()
 
             if packet.code in self.receivers:
-                reply = self.receivers[packet.code](packet)
-
-                if isinstance(reply, Packet):
+                try:
+                    reply = self.receivers[packet.code](packet)
+                    if isinstance(reply, Packet):
+                        reply.addr = packet.addr
+                        self.send(reply)
+                except Exception:
+                    reply = make_not_implemented(packet.id, packet.token)
+                    reply.payload = bytes('Server does not support the request type', 'utf-8')
                     reply.addr = packet.addr
                     self.send(reply)
             else:
