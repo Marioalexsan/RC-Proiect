@@ -198,15 +198,24 @@ class Server:
             if packet.code in self.packet_receivers:
                 reply = self.packet_receivers[packet.code](packet)
 
-                # If the receiver returned a reply, send it
-                if isinstance(reply, Packet):
-                    reply.addr = packet.get_reply_type()
-                    reply.addr = packet.addr
-                    self.send(reply)
+                try:
+                    # If the receiver returned a reply, send it
+                    if isinstance(reply, Packet):
+                        reply.addr = packet.get_reply_type()
+                        reply.addr = packet.addr
+                        self.send(reply)
 
-                # No valid reply, send ACK INTERNAL ERROR if CON
-                elif packet.type == TYPE_CON:
-                    reply = Packet(TYPE_ACK, MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
+                    # No valid reply, send ACK INTERNAL ERROR if CON
+                    elif packet.type == TYPE_CON:
+                        reply = Packet(TYPE_ACK, MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
+                        reply.payload = bytes('An unknown internal error happened!', 'utf-8')
+                        reply.addr = packet.addr
+                        self.send(reply)
+
+                except Exception:
+                    reply = Packet(packet.get_reply_type(), MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
+                    reply.payload = bytes('An unknown internal error happened!', 'utf-8')
+                    reply.addr = packet.addr
                     self.send(reply)
 
             # We can't parse this - we'll use a server error instead of a non-descriptive RESET
