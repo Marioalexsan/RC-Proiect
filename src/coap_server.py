@@ -162,8 +162,12 @@ class Server:
                 data, packet.addr = self.__sock.recvfrom(self.config['maxdatasize'])
                 packet.parse(data)
 
-                if callable(self.on_request_received):
-                    self.on_request_received(packet)
+                try:
+                    if callable(self.on_request_received):
+                        self.on_request_received(packet)
+                except Exception as e:
+                    print('On Request Received event threw an exception for some reason!')
+                    print(e)
 
             except timeout:
                 continue
@@ -196,24 +200,23 @@ class Server:
 
             # Check if we know how to parse the packet
             if packet.code in self.packet_receivers:
-                reply = self.packet_receivers[packet.code](packet)
-
                 try:
-                    # If the receiver returned a reply, send it
-                    if isinstance(reply, Packet):
-                        reply.addr = packet.get_reply_type()
-                        reply.addr = packet.addr
-                        self.send(reply)
-
-                    # No valid reply, send ACK INTERNAL ERROR if CON
-                    elif packet.type == TYPE_CON:
-                        reply = Packet(TYPE_ACK, MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
-                        reply.payload = bytes('An unknown internal error happened!', 'utf-8')
-                        reply.addr = packet.addr
-                        self.send(reply)
-
+                    reply = self.packet_receivers[packet.code](packet)
                 except Exception:
                     reply = Packet(packet.get_reply_type(), MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
+                    reply.payload = bytes('An unknown internal error happened!', 'utf-8')
+                    reply.addr = packet.addr
+                    self.send(reply)
+
+                # If the receiver returned a reply, send it
+                if isinstance(reply, Packet):
+                    reply.addr = packet.get_reply_type()
+                    reply.addr = packet.addr
+                    self.send(reply)
+
+                # No valid reply, send ACK INTERNAL ERROR if CON
+                elif packet.type == TYPE_CON:
+                    reply = Packet(TYPE_ACK, MSG_INTERNAL_SERVER_ERROR, packet.id, packet.token)
                     reply.payload = bytes('An unknown internal error happened!', 'utf-8')
                     reply.addr = packet.addr
                     self.send(reply)

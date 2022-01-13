@@ -1,8 +1,9 @@
+import json
 from tkinter import *
 from tkinter import ttk
 from coap_server import *
 from coap_parser import Parser
-from src.pygubuapp import PygubuApp
+from pygubuapp import PygubuApp
 
 
 # Overrides auto-generated UI from Pygubu
@@ -45,28 +46,62 @@ class Application(PygubuApp):
 
     # Other
 
-    def log_reply(self, packet: Packet):
-        log = self.get_widget('server_log')
+    def log_packet(self, packet: Packet, received: bool):
+        from_to = 'To'
 
-        text = 'Sent reply {0} - {1} to {2}\n'.format(type_str(packet.type), code_str(packet.code), packet.addr)
-        log['text'] += '[{0:.2f}]'.format(time.time() - self.__launch_time) + text
-        self.__trim_log()
-        return
+        if received:
+            from_to = 'From'
+
+        the_json = None
+        try:
+            json_decoder = json.JSONDecoder()
+            the_json = json_decoder.decode(packet.payload.decode('utf-8'))
+        except Exception:
+            pass
+
+        self.__log_write('[{0:.2f}] '.format(time.time() - self.__launch_time))
+        self.__log_writeline(from_to + ' {}:{} => {}, {}, ID: {}, Token: "{}"'
+                             .format(
+                                packet.addr[0], packet.addr[1], type_str(packet.type),
+                                code_str(packet.code), packet.id, packet.token
+                                )
+                             )
+
+        if the_json:
+            if 'cmd' in the_json:
+                self.__log_writeline('== Command: {}'.format(the_json['cmd']))
+
+            if 'status' in the_json:
+                self.__log_writeline('== Status: {}'.format(the_json['status']))
+
+            if 'path' in the_json:
+                self.__log_writeline('== Server Path: {}'.format(the_json['path']))
+        else:
+            self.__log_writeline('== Non-JSON Payload: {}'.format(packet.payload.decode('utf-8')))
 
     def log_request(self, packet: Packet):
-        log = self.get_widget('server_log')
-
-        text = 'Request {0} - {1} from {2}\n'.format(type_str(packet.type), code_str(packet.code), packet.addr)
-        log['text'] += '[{0:.2f}]'.format(time.time() - self.__launch_time) + text
-
+        self.log_packet(packet, True)
         self.__trim_log()
         return
+
+    def log_reply(self, packet: Packet):
+        self.log_packet(packet, False)
+        self.__trim_log()
+        return
+
+    def __log_writeline(self, text):
+        self.get_widget('server_log')['text'] += text + '\n'
+        self.__trim_log()
+
+    def __log_write(self, text):
+        self.get_widget('server_log')['text'] += text
+        self.__trim_log()
 
     def __trim_log(self):
         log = self.get_widget('server_log')
 
         log_text = log['text']
-        while len(log_text) > 800:
+        while len(log_text) > 1350:
             try:
                 index = log_text.index('\n')
             except Exception:
