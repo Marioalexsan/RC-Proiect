@@ -1,0 +1,99 @@
+fshelped.py (filesystem helper)
+	->provides simplified file acces methods
+	->contine:
+		->list_files(path): Return a list containing the names of the files in the directory
+		->create(path): Functie de creare a unui fisier
+		->delete(path): Functie de stergere a unui fisier
+		->read_data(path): Functie de citire dintr-un fisier
+		->move(curpath, newpath): Functie de schimbare a locatiei unui fisier
+		
+		
+coap.py 
+	->defineste constantele folosite in proiect
+	->categorii de constante:
+		->message types/ tipuri de mesaje
+			->TYPE_CON = Confirmable 
+			->TYPE_NON = Non-confirmable
+			->TYPE_ACK = Acknowledgement
+			->TYPE_RESET = Reset
+		->message classes/ clase de mesaje
+			->CLASS_METHOD
+			->CLASS_SUCCESS
+			->CLASS_CLIENT_ERROR
+			->CLASS_SERVER_ERROR
+			->CLASS_SIGNAL_CODE
+		->non standard message codes/ coduri de mesaje nestandardizate
+			->MSG_SEARCH 0.8
+		->empty message method code/ cod pentru metoda mesaj gol
+			->MSG_EMPTY 0.0 /neither a request nor a response
+		->method codes/ coduri pentru metode
+			->MSG_GET 0.1
+			->MSG_POST	0.2
+			->MSG_PUT	0.3
+			->MSG_DELETE	0.4
+		->success codes/ coduri pentru succese
+			->MSG_CREATED	2.1
+			->MSG_DELETED	2.2
+			->MSG_VALID	2.3
+			->MSG_CHANGED	2.4
+			->MSG_CONTENT	2.5
+		->client error codes/ coduri pentru eroare la client
+			->MSG_BAD_REQUEST  4.0
+			->MSG_UNAUTHORIZED  4.1
+			->MSG_BAD_OPTION  4.2
+			->MSG_FORBIDDEN  4.3
+			->MSG_NOT_FOUND 4.4
+			->MSG_METHOD_NOT_ALLOWED  4.5
+			->MSG_NOT_ACCEPTABLE  4.6
+			->MSG_REQUEST_ENTITY_INCOMPLETE 4.8
+			->MSG_CONFLICT  4.9
+			->MSG_PRECONDITION_FAILED 4.12
+			->MSG_REQUEST_ENTITY_TOO_LARGE  4.13
+			->MSG_UNSUPPORTED_CONTENT_FORMAT  4.15
+		->server error codes/ coduri pentru erori la server	
+			->MSG_INTERNAL_SERVER_ERROR = (5, 0)
+			->MSG_NOT_IMPLEMENTED = (5, 1)
+			->MSG_BAD_GATEWAY = (5, 2)
+			->MSG_SERVICE_UNAVAILABLE = (5, 3)
+			->MSG_GATEWAY_TIMEOUT = (5, 4)
+			->MSG_PROXYING_NOT_SUPPORTED = (5, 5)
+		->signaling codes
+		->option id
+		->media types
+		->communication parameters
+	->contine clasele:
+		->CoAPException
+		->CoAPPacket /Clasa pentru definirea unui pachet Co-AP cu toate campurile sale
+			->__init__(self): constructor
+			->parse(self, data): Initializeaza un pachet coap dintr-un sir de octeti
+			->tobytes(self): Functie de convertire a unui pachet coap la un sir de octeti
+			->__str__(self): Functie de reprezentare scrisa a pachetului
+	->contine functiile
+		->make_reset(msg_id): creeaza un reply cu ID-ul primit al mesajului
+		->make_empty_ack(msg_id): creeaza un mesaj ack gol cu ID-ul primit
+		->make_not_implemented(msg_id)
+
+coap_server.py - nu prea il inteleg, rundown again
+	->contine clasele
+		->PacketState : defineste state-ul curent al pachetului ce asteapta sa fie trimis
+			->__init__(self)
+		->CoAPServer: clasa pentru definirea unui server CoAP
+			->__init__(self):
+			->start(self): Functie de pornire a serverului
+			->stop(self): Functie de oprire a serverului
+			->is_active(self)
+			->send(self, packet: CoAPPacket)
+			->generate_id(self)
+			->__threadloop(self)
+			->__send_packet(self, packet: CoAPPacket)
+			
+coap_parser.py
+	->contine clasa
+		->CoAPParser
+			->__init__(self): initializarea encoderului si decoderului JSON
+			->onget(self, packet: CoAPPacket):
+			->onpost(self, packet: CoAPPacket):
+			->def onput(self, packet: CoAPPacket):
+			->ondelete(self, packet: CoAPPacket):
+			->onsearch(self, packet: CoAPPacket):
+			

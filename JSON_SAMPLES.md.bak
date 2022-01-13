@@ -322,9 +322,9 @@
 	// 1 - 2.05 Content - search results
 	{
 		"client_cmd": "search",
-		"path": "/users/Alex",
+		"search_path": "/users/Alex",
 		"results": [ "lmao.exe", "Half_Life_3.exe" ],
-		"results": [ "/users/Alex/lmao.exe", "/users/Alex/docs/Half_Life_3.exe" ]
+		"result_paths": [ "/users/Alex/lmao.exe", "/users/Alex/docs/Half_Life_3.exe" ]
 	}
 	// 3 - 4.04 Not Found - diagnostic message
 	"Search path is invalid"
